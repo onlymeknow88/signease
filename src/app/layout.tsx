@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins, JetBrains_Mono, Inter } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NextAuthProvider } from "@/components/providers/NextAuthProvider";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -47,6 +48,11 @@ export default function RootLayout({
       >
         <NextAuthProvider>
           <TooltipProvider>{children}</TooltipProvider>
+          <Toaster
+            position="bottom-right"
+            richColors
+            toastOptions={{ classNames: { toast: "font-sans text-xs" } }}
+          />
         </NextAuthProvider>
       </body>
     </html>

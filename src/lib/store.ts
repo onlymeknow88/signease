@@ -104,9 +104,14 @@ interface ESignStore {
   // UI state
   isPlacingMode: boolean; // true = next click on PDF places the signature
   pdfScale: number; // Zoom level
-  activeTool: "select" | "text" | "cross" | "check" | "circle" | "line" | "dot" | "signature";
+  activeTool: "select" | "text" | "cross" | "check" | "circle" | "line" | "dot" | "signature" | "initial" | "date" | "box" | "checkbox";
   activeColor: string; // Hex color for drawing/text
   rightPanelTab: "properties" | "certificate";
+
+  // NEW: Sidebar & thumbnail panel state
+  sidebarCollapsed: boolean;
+  thumbnailPanelOpen: boolean;
+  viewMode: "single" | "grid";
 
   // User/Auth/Subscription State
   user: UserState;
@@ -122,9 +127,12 @@ interface ESignStore {
   setTotalPages: (n: number) => void;
   setCurrentPage: (n: number) => void;
   setPdfScale: (scale: number) => void;
-  setActiveTool: (tool: "select" | "text" | "cross" | "check" | "circle" | "line" | "dot" | "signature") => void;
+  setActiveTool: (tool: "select" | "text" | "cross" | "check" | "circle" | "line" | "dot" | "signature" | "initial" | "date" | "box" | "checkbox") => void;
   setActiveColor: (color: string) => void;
   setRightPanelTab: (tab: "properties" | "certificate") => void;
+  setSidebarCollapsed: (val: boolean) => void;
+  setThumbnailPanelOpen: (val: boolean) => void;
+  setViewMode: (mode: "single" | "grid") => void;
 
   addSavedSignature: (dataUrl: string) => void;
   removeSavedSignature: (dataUrl: string) => void;
@@ -151,10 +159,11 @@ interface ESignStore {
   reset: () => void;
 
   // User Actions
-  login: (name: string, email: string, provider: "google" | "email") => void;
+  login: (name: string, email: string, provider: "google" | "email", plan?: "free" | "pro") => void;
   logout: () => void;
   setPlan: (plan: "free" | "pro") => void;
   addBillingRecord: (amount: number, method: string, status?: "Paid" | "Failed") => void;
+  setBillingHistory: (history: BillingRecord[]) => void;
   setPdfHash: (hash: string | null) => void;
 
   // Main signing execution
@@ -177,6 +186,9 @@ export const useESignStore = create<ESignStore>((set) => ({
   activeTool: "select",
   activeColor: "#1a1a2e",
   rightPanelTab: "properties",
+  sidebarCollapsed: false,
+  thumbnailPanelOpen: true,
+  viewMode: "single",
   history: [[]],
   historyIndex: 0,
 
@@ -193,6 +205,9 @@ export const useESignStore = create<ESignStore>((set) => ({
   setActiveTool: (tool) => set({ activeTool: tool }),
   setActiveColor: (color) => set({ activeColor: color }),
   setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+  setSidebarCollapsed: (val) => set({ sidebarCollapsed: val }),
+  setThumbnailPanelOpen: (val) => set({ thumbnailPanelOpen: val }),
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   undo: () =>
     set((s) => {
@@ -306,11 +321,11 @@ export const useESignStore = create<ESignStore>((set) => ({
       signedAt: null,
     }),
 
-  login: (name, email, provider) => {
+  login: (name, email, provider, plan = "free") => {
     const newUser: UserState = {
       name,
       email,
-      plan: "free",
+      plan,
       loggedIn: true,
       provider,
     };
@@ -363,6 +378,13 @@ export const useESignStore = create<ESignStore>((set) => ({
       }
       return { billingHistory: updatedHistory };
     });
+  },
+
+  setBillingHistory: (history) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("signease_billing", JSON.stringify(history));
+    }
+    set({ billingHistory: history });
   },
 
   setPdfHash: (hash) => set({ pdfHash: hash }),

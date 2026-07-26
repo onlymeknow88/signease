@@ -1,0 +1,86 @@
+// Prisma schema untuk SignEase — MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int       @id @default(autoincrement())
+  name                   String?   @db.VarChar(255)
+  email                  String    @unique @db.VarChar(255)
+  password               String?   @db.VarChar(255)
+  image                  String?   @db.Text
+  emailVerified          DateTime?
+  plan                   String    @default("free") @db.VarChar(20)
+  subscriptionStatus     String    @default("inactive") @db.VarChar(20)
+  subscriptionExpiresAt  DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  billingRecords BillingRecord[]
+
+  @@map("users")
+}
+
+model Account {
+  id                Int     @id @default(autoincrement())
+  userId            Int
+  type              String  @db.VarChar(255)
+  provider          String  @db.VarChar(255)
+  providerAccountId String  @db.VarChar(255)
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String? @db.VarChar(255)
+  scope             String? @db.VarChar(255)
+  id_token          String? @db.Text
+  session_state     String? @db.VarChar(255)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  sessionToken String   @unique @db.VarChar(255)
+  userId       Int
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String   @db.VarChar(255)
+  token      String   @db.VarChar(255)
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model BillingRecord {
+  id            Int      @id @default(autoincrement())
+  invoiceId     String   @unique @db.VarChar(50)
+  userId        Int
+  amount        Int
+  method        String   @db.VarChar(100)
+  status        String   @default("Paid") @db.VarChar(20)
+  plan          String   @default("pro") @db.VarChar(20)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("billing_records")
+}

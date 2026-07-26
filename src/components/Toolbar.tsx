@@ -3,23 +3,55 @@
 import { useState, useRef, useEffect } from "react";
 import { useESignStore } from "@/lib/store";
 import { generateTextImage } from "@/lib/utils";
+import { MousePointer2, Type, PenLine, Fingerprint, Calendar, Square, CheckSquare, MoreHorizontal } from "lucide-react";
 
 interface ToolbarProps {
   onOpenSignaturePad: () => void;
 }
 
+// ── ToolTab pill component ────────────────────────────────────────────────────
+function ToolTab({
+  icon: Icon,
+  label,
+  isActive,
+  onClick,
+  disabled = false,
+}: {
+  icon: React.ElementType;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? `${label} (Segera Hadir)` : label}
+      className={`
+        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+        transition-all duration-150 active:scale-95 whitespace-nowrap
+        ${isActive
+          ? "bg-primary text-on-primary shadow-sm"
+          : "text-on-surface-variant hover:bg-slate-100 hover:text-on-surface"
+        }
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+      `}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
 export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
   const {
-    pdfBytes,
     savedSignatures,
     selectedSignatureUrl,
     selectedSignatureType,
     selectedTextDetails,
-    annotations,
-    selectedAnnotationId,
     isPlacingMode,
-    history,
-    historyIndex,
     user,
     setSelectedSignature,
     removeSavedSignature,
@@ -28,10 +60,6 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     setPdfFile,
     setPdfBytes,
     setRightPanelTab,
-    updateAnnotation,
-    setSelectedAnnotationId,
-    undo,
-    redo,
   } = useESignStore();
 
   const [activeMenu, setActiveMenu] = useState<"signature" | "text" | "cert" | null>("signature");
@@ -50,70 +78,6 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const selectedAnnotation = annotations.find((a) => a.id === selectedAnnotationId);
-  const isEditingText = selectedAnnotation?.type === "text";
-  const isPlacingText = isPlacingMode && selectedSignatureType === "text";
-  const isTextModeActive = isEditingText || isPlacingText || activeMenu === "text";
-
-  const updateTextProperty = (updates: {
-    text?: string;
-    fontFamily?: string;
-    size?: number;
-    color?: string;
-    isBold?: boolean;
-    isItalic?: boolean;
-    isUnderline?: boolean;
-  }) => {
-    const activeText = updates.text !== undefined ? updates.text : (selectedAnnotation ? selectedAnnotation.text || "" : (selectedTextDetails?.text || "Nama Terang"));
-    const activeFontFamily = updates.fontFamily !== undefined ? updates.fontFamily : (selectedAnnotation ? selectedAnnotation.fontFamily || "Poppins" : (selectedTextDetails?.fontFamily || "Poppins"));
-    const activeSize = updates.size !== undefined ? updates.size : (selectedAnnotation ? selectedAnnotation.textSize || 24 : (selectedTextDetails?.size || 24));
-    const activeColor = updates.color !== undefined ? updates.color : (selectedAnnotation ? selectedAnnotation.textColor || "#004782" : (selectedTextDetails?.color || "#004782"));
-    const activeBold = updates.isBold !== undefined ? updates.isBold : (selectedAnnotation ? selectedAnnotation.isBold === true : (selectedTextDetails?.isBold === true));
-    const activeItalic = updates.isItalic !== undefined ? updates.isItalic : (selectedAnnotation ? selectedAnnotation.isItalic || false : (selectedTextDetails?.isItalic || false));
-    const activeUnderline = updates.isUnderline !== undefined ? updates.isUnderline : (selectedAnnotation ? selectedAnnotation.isUnderline || false : (selectedTextDetails?.isUnderline || false));
-
-    const { dataUrl, aspectRatio } = generateTextImage(
-      activeText,
-      activeSize,
-      activeColor,
-      activeFontFamily,
-      activeBold,
-      activeItalic,
-      activeUnderline
-    );
-
-    if (selectedAnnotation) {
-      const oldSize = selectedAnnotation.textSize || 24;
-      const scaleMultiplier = activeSize / oldSize;
-      const newWidthRatio = Math.min(1 - selectedAnnotation.xRatio, selectedAnnotation.widthRatio * scaleMultiplier);
-      const newHeightRatio = newWidthRatio * aspectRatio;
-
-      updateAnnotation(selectedAnnotation.id, {
-        text: activeText,
-        textSize: activeSize,
-        textColor: activeColor,
-        fontFamily: activeFontFamily,
-        isBold: activeBold,
-        isItalic: activeItalic,
-        isUnderline: activeUnderline,
-        imageDataUrl: dataUrl,
-        widthRatio: newWidthRatio,
-        heightRatio: newHeightRatio,
-      });
-    } else {
-      const newDetails = {
-        text: activeText,
-        color: activeColor,
-        size: activeSize,
-        fontFamily: activeFontFamily,
-        isBold: activeBold,
-        isItalic: activeItalic,
-        isUnderline: activeUnderline,
-      };
-      setSelectedSignature(dataUrl, "text", newDetails);
-    }
-  };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -173,13 +137,6 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     setPlacingMode(true);
   };
 
-  const handleFinishTextMode = () => {
-    setActiveMenu(null);
-    setPlacingMode(false);
-    setSelectedSignature(null, undefined, null);
-    setSelectedAnnotationId(null);
-  };
-
   const handleCertClick = () => {
     setActiveMenu("cert");
     setRightPanelTab("certificate");
@@ -194,172 +151,6 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
         ? `bg-primary text-white shadow-md`
         : `text-on-surface-variant hover:bg-slate-100 hover:text-on-surface`
     }`;
-
-  // If in text annotation mode or editing a text, show the text formatting bar
-  if (isTextModeActive) {
-    const colorVal = selectedAnnotation ? selectedAnnotation.textColor || "#004782" : (selectedTextDetails?.color || "#004782");
-    const sizeVal = selectedAnnotation ? selectedAnnotation.textSize || 24 : (selectedTextDetails?.size || 24);
-    const fontFamilyVal = selectedAnnotation ? selectedAnnotation.fontFamily || "Poppins" : (selectedTextDetails?.fontFamily || "Poppins");
-    const boldVal = selectedAnnotation ? selectedAnnotation.isBold === true : (selectedTextDetails?.isBold === true);
-    const italicVal = selectedAnnotation ? selectedAnnotation.isItalic || false : (selectedTextDetails?.isItalic || false);
-    const underlineVal = selectedAnnotation ? selectedAnnotation.isUnderline || false : (selectedTextDetails?.isUnderline || false);
-
-    return (
-      <div ref={toolbarRef} className="flex items-center gap-3 h-full select-none">
-        {/* Undo / Redo controls */}
-        <div className="flex items-center bg-slate-50 border border-outline-variant/60 rounded-lg p-1 shadow-sm gap-0.5">
-          <button
-            onClick={undo}
-            disabled={historyIndex <= 0}
-            className="p-1.5 hover:bg-slate-100 disabled:opacity-30 rounded text-on-surface-variant flex items-center justify-center cursor-pointer transition-colors"
-            title="Undo"
-          >
-            <span className="material-symbols-outlined text-[18px]">undo</span>
-          </button>
-          <button
-            onClick={redo}
-            disabled={historyIndex >= history.length - 1}
-            className="p-1.5 hover:bg-slate-100 disabled:opacity-30 rounded text-on-surface-variant flex items-center justify-center cursor-pointer transition-colors"
-            title="Redo"
-          >
-            <span className="material-symbols-outlined text-[18px]">redo</span>
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-6 w-[1px] bg-outline-variant/60"></div>
-
-        {/* Font Family Dropdown */}
-        <div className="relative">
-          <select
-            value={fontFamilyVal}
-            onChange={(e) => updateTextProperty({ fontFamily: e.target.value })}
-            className="bg-white pl-3 pr-8 py-1.5 rounded-lg border border-outline-variant text-xs font-semibold hover:border-primary transition-colors focus:outline-none appearance-none cursor-pointer"
-            style={{
-              fontFamily: fontFamilyVal === "JetBrains Mono" ? "var(--font-mono)" : fontFamilyVal === "Inter" ? "var(--font-inter)" : "var(--font-sans)",
-            }}
-          >
-            <option value="Poppins">Poppins</option>
-            <option value="Inter">Inter</option>
-            <option value="JetBrains Mono">JetBrains Mono</option>
-          </select>
-          <span className="material-symbols-outlined text-[16px] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-outline">
-            expand_more
-          </span>
-        </div>
-
-        {/* Font Size controls */}
-        <div className="flex items-center bg-white rounded-lg border border-outline-variant px-1 shadow-sm">
-          <button
-            onClick={() => updateTextProperty({ size: Math.max(10, sizeVal - 2) })}
-            className="p-1 text-on-surface-variant hover:text-primary hover:bg-slate-50 rounded cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px]">remove</span>
-          </button>
-          <input
-            type="text"
-            value={sizeVal}
-            onChange={(e) => updateTextProperty({ size: parseInt(e.target.value) || 12 })}
-            className="w-8 text-center bg-transparent border-none focus:ring-0 text-xs font-bold focus:outline-none p-0"
-          />
-          <button
-            onClick={() => updateTextProperty({ size: Math.min(72, sizeVal + 2) })}
-            className="p-1 text-on-surface-variant hover:text-primary hover:bg-slate-50 rounded cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px]">add</span>
-          </button>
-        </div>
-
-        {/* Formatting toggle group */}
-        <div className="flex items-center bg-white rounded-lg border border-outline-variant p-1 shadow-sm gap-0.5">
-          <button
-            onClick={() => updateTextProperty({ isBold: !boldVal })}
-            className={`p-1.5 rounded font-bold cursor-pointer transition-colors flex items-center justify-center ${
-              boldVal
-                ? "bg-primary/10 text-primary"
-                : "hover:bg-slate-100 text-on-surface-variant"
-            }`}
-            title="Bold"
-          >
-            <span className="material-symbols-outlined text-[18px]">format_bold</span>
-          </button>
-          <button
-            onClick={() => updateTextProperty({ isItalic: !italicVal })}
-            className={`p-1.5 rounded cursor-pointer transition-colors flex items-center justify-center ${
-              italicVal
-                ? "bg-primary/10 text-primary"
-                : "hover:bg-slate-100 text-on-surface-variant"
-            }`}
-            title="Italic"
-          >
-            <span className="material-symbols-outlined text-[18px]">format_italic</span>
-          </button>
-          <button
-            onClick={() => updateTextProperty({ isUnderline: !underlineVal })}
-            className={`p-1.5 rounded cursor-pointer transition-colors flex items-center justify-center ${
-              underlineVal
-                ? "bg-primary/10 text-primary"
-                : "hover:bg-slate-100 text-on-surface-variant"
-            }`}
-            title="Underline"
-          >
-            <span className="material-symbols-outlined text-[18px]">format_underlined</span>
-          </button>
-        </div>
-
-        {/* Color picker */}
-        <div className="relative flex items-center gap-1.5">
-          <div
-            className="w-6 h-6 rounded-full border border-outline-variant shadow-sm cursor-pointer hover:scale-105 transition-transform"
-            style={{ backgroundColor: colorVal }}
-            onClick={() => setOpenPopup(openPopup === "text" ? null : "text")}
-          />
-          <button
-            onClick={() => setOpenPopup(openPopup === "text" ? null : "text")}
-            className="p-1 hover:bg-slate-100 rounded text-on-surface-variant flex flex-col items-center justify-center cursor-pointer transition-colors w-8 h-8"
-            title="Ubah Warna"
-          >
-            <span className="text-sm font-bold leading-none select-none">A</span>
-            <div className="w-5 h-1 mt-0.5 rounded" style={{ backgroundColor: colorVal }} />
-          </button>
-          {openPopup === "text" && (
-            <div className="absolute top-full mt-2 left-0 bg-white border border-outline-variant rounded-xl shadow-xl z-50 p-2 flex gap-1.5 animate-in slide-in-from-top-1 duration-150">
-              {["#1a1a2e", "#004782", "#006c4e", "#ba1a1a", "#d97706"].map((c) => (
-                <button
-                  key={c}
-                  onClick={() => {
-                    updateTextProperty({ color: c });
-                    setOpenPopup(null);
-                  }}
-                  className={`w-6 h-6 rounded-full border border-outline-variant transition-all hover:scale-110 ${
-                    colorVal === c ? "scale-115 ring-2 ring-primary ring-offset-1" : ""
-                  }`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="h-6 w-[1px] bg-outline-variant/60"></div>
-
-        {/* Mode badge */}
-        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3.5 py-1.5 rounded-full text-[11px] font-bold shadow-sm select-none">
-          <span className="material-symbols-outlined text-[16px]">text_fields</span>
-          <span>Mode: Tambah Teks</span>
-        </div>
-
-        {/* Selesai button */}
-        <button
-          onClick={handleFinishTextMode}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer ml-4"
-        >
-          Selesai
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div ref={toolbarRef} className="relative overflow-visible">
@@ -392,26 +183,34 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
           </button>
         </div>
 
-        {/* Divider */}
-        <div className="w-px h-6 bg-outline-variant/60 mx-1" />
+        {/* Pilih (Select) */}
+        <ToolTab
+          icon={MousePointer2}
+          label="Pilih"
+          isActive={!isPlacingMode && activeMenu === null}
+          onClick={() => {
+            setPlacingMode(false);
+            setSelectedSignature(null, undefined, null);
+            setActiveMenu(null);
+          }}
+        />
+
+        <div className="w-px h-5 bg-outline-variant/50 mx-1" />
+        <ToolTab
+          icon={Type}
+          label="Teks"
+          isActive={activeMenu === "text" && isPlacingMode}
+          onClick={handleTextClick}
+        />
 
         {/* Tanda Tangan */}
         <div className="relative overflow-visible">
-          <button
+          <ToolTab
+            icon={PenLine}
+            label="Tanda Tangan"
+            isActive={activeMenu === "signature" && isPlacingMode}
             onClick={handleSignatureClick}
-            className={iconBtn(activeMenu === "signature")}
-          >
-            <span
-              className="material-symbols-outlined text-[20px]"
-              style={{ fontVariationSettings: activeMenu === "signature" ? "'FILL' 1" : "'FILL' 0" }}
-            >
-              draw
-            </span>
-            <span className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-900 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[9999] shadow-lg">
-              Tanda Tangan
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
-            </span>
-          </button>
+          />
 
           {/* Signature Popup */}
           {openPopup === "signature" && (
@@ -466,43 +265,32 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
           )}
         </div>
 
-        {/* Tambah Teks */}
-        <div className="relative overflow-visible">
-          <button
-            onClick={handleTextClick}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all active:scale-95 group cursor-pointer border ${
-              (activeMenu as string) === "text"
-                ? "bg-primary text-white shadow-md font-bold border-primary"
-                : "text-on-surface-variant hover:bg-slate-100 hover:text-on-surface font-semibold border-transparent"
-            }`}
-          >
-            <span
-              className="text-lg font-bold select-none leading-none w-5 h-5 flex items-center justify-center"
-              style={{ fontFamily: "sans-serif" }}
-            >
-              T
-            </span>
-            <span className="text-xs">Add Text</span>
-          </button>
-        </div>
+        {/* Inisial */}
+        <ToolTab icon={Fingerprint} label="Inisial"   isActive={false} onClick={() => {}} disabled />
+        {/* Tanggal */}
+        <ToolTab icon={Calendar}    label="Tanggal"   isActive={false} onClick={() => {}} disabled />
+        {/* Kotak */}
+        <ToolTab icon={Square}      label="Kotak"     isActive={false} onClick={() => {}} disabled />
+        {/* Checklist */}
+        <ToolTab icon={CheckSquare} label="Checklist" isActive={false} onClick={() => {}} disabled />
+
+        <div className="w-px h-5 bg-outline-variant/50 mx-1" />
 
         {/* Sertifikat */}
         <div className="relative overflow-visible">
-          <button
+          <ToolTab
+            icon={({ className }: { className?: string }) => (
+              <span
+                className="material-symbols-outlined text-[16px] leading-none"
+                style={{ fontVariationSettings: activeMenu === "cert" ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                verified_user
+              </span>
+            )}
+            label="Sertifikat"
+            isActive={activeMenu === "cert"}
             onClick={handleCertClick}
-            className={iconBtn(activeMenu === "cert")}
-          >
-            <span
-              className="material-symbols-outlined text-[20px]"
-              style={{ fontVariationSettings: activeMenu === "cert" ? "'FILL' 1" : "'FILL' 0" }}
-            >
-              verified_user
-            </span>
-            <span className="pointer-events-none absolute top-full mt-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-900 text-white text-[11px] font-medium px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[9999] shadow-lg">
-              Sertifikat Digital
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900" />
-            </span>
-          </button>
+          />
 
           {/* Cert Popup */}
           {openPopup === "cert" && (
@@ -540,8 +328,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
           )}
         </div>
 
-        {/* Divider */}
-        <div className="w-px h-6 bg-outline-variant/60 mx-1" />
+        <div className="w-px h-5 bg-outline-variant/50 mx-1" />
       </div>
     </div>
   );

@@ -23,13 +23,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function AccountPage() {
-  const { user, billingHistory, setPlan } = useESignStore();
+  const { user, billingHistory, setPlan, addBillingRecord, setBillingHistory } = useESignStore();
   const { status } = useSession();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [profileName, setProfileName] = useState(user.name || "");
   const [profileEmail, setProfileEmail] = useState(user.email || "");
   const [isSaved, setIsSaved] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -48,21 +49,67 @@ export default function AccountPage() {
     if (user.email) setProfileEmail(user.email);
   }, [user.name, user.email]);
 
+  // Fetch subscription status + billing dari DB saat mount
+  useEffect(() => {
+    if (!mounted || !user.loggedIn) return;
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(user.email || "guest@example.com")}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        // Sync plan dari DB ke store
+        if (data.plan && data.plan !== user.plan) {
+          setPlan(data.plan as "free" | "pro");
+        }
+        // Sync billing dari DB ke store
+        if (data.billingHistory) {
+          const syncedHistory = data.billingHistory.map((r: any) => ({
+            id: r.id || r.invoiceId,
+            date: r.date,
+            amount: r.amount,
+            method: r.method,
+            status: r.status,
+          }));
+          setBillingHistory(syncedHistory);
+        }
+      } catch {
+        // silently ignore — gunakan localStorage fallback
+      }
+    };
+    fetchStatus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, user.loggedIn]);
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (typeof window !== "undefined") {
       const updatedUser = { ...user, name: profileName, email: profileEmail };
       localStorage.setItem("signease_user", JSON.stringify(updatedUser));
-      // Re-trigger store update via plan setting (since our store syncs user to localStorage)
       setPlan(user.plan);
     }
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
 
-  const handleCancelSubscription = () => {
-    if (confirm("Apakah Anda yakin ingin membatalkan langganan Pro? Semua fitur Pro akan dikunci kembali.")) {
-      setPlan("free");
+  const handleCancelSubscription = async () => {
+    if (!confirm("Apakah Anda yakin ingin membatalkan langganan Pro? Semua fitur Pro akan dikunci kembali.")) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch("/api/subscription/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user?.email || "guest@example.com" }),
+      });
+      if (res.ok) {
+        setPlan("free");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal membatalkan langganan. Coba lagi.");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan. Coba lagi.");
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -182,6 +229,19 @@ export default function AccountPage() {
     }
   };
 
+  if (!mounted) {
+    return (
+      <MainLayout>
+        <div className="max-w-7xl mx-auto px-6 py-12 w-full flex items-center justify-center min-h-[400px]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+            <p className="text-xs text-outline font-semibold">Memuat akun...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-6 py-12 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -267,9 +327,10 @@ export default function AccountPage() {
                   <Button
                     variant="outline"
                     onClick={handleCancelSubscription}
-                    className="w-full text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 py-5 rounded-xl transition-all"
+                    disabled={isCancelling}
+                    className="w-full text-xs font-bold text-red-600 border-red-200 hover:bg-red-50 py-5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Batalkan Langganan Pro
+                    {isCancelling ? "Memproses..." : "Batalkan Langganan Pro"}
                   </Button>
                 </div>
               </div>

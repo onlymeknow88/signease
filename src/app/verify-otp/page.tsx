@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useESignStore } from "@/lib/store";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, ShieldCheck } from "lucide-react";
 
-export default function VerifyOtpPage() {
+function VerifyOtpContent() {
   const { login } = useESignStore();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -265,5 +265,17 @@ export default function VerifyOtpPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function VerifyOtpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    }>
+      <VerifyOtpContent />
+    </Suspense>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useESignStore } from "@/lib/store";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,11 +20,17 @@ import {
 export default function PricingPage() {
   const { user, setPlan, addBillingRecord } = useESignStore();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   // Dialog State
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<"method" | "loading" | "success">("method");
   const [paymentMethod, setPaymentMethod] = useState<string>("Credit Card");
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSelectFree = () => {
     setPlan("free");
@@ -34,16 +40,34 @@ export default function PricingPage() {
   const handleStartPayment = () => {
     setShowCheckout(true);
     setCheckoutStep("method");
+    setCheckoutError(null);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     setCheckoutStep("loading");
-    // Simulate payment processing
-    setTimeout(() => {
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/subscription/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: paymentMethod,
+          amount: 149000,
+          email: user?.email || "guest@example.com"
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Gagal memproses pembayaran");
+
+      // Update store dengan plan dari DB
       setPlan("pro");
       addBillingRecord(149000, paymentMethod);
       setCheckoutStep("success");
-    }, 2000);
+    } catch (err: any) {
+      setCheckoutError(err.message || "Terjadi kesalahan. Coba lagi.");
+      setCheckoutStep("method");
+    }
   };
 
   const handleCheckoutClose = () => {
@@ -100,10 +124,10 @@ export default function PricingPage() {
               variant="outline"
               onClick={handleSelectFree}
               className={`w-full py-6 rounded-xl border-primary text-primary font-bold ${
-                user.plan === "free" ? "bg-primary/5 cursor-default" : "hover:bg-primary/5"
+                mounted && user.plan === "free" ? "bg-primary/5 cursor-default" : "hover:bg-primary/5"
               }`}
             >
-              {user.plan === "free" ? "Paket Aktif Anda" : "Mulai Gratis"}
+              {mounted && user.plan === "free" ? "Paket Aktif Anda" : "Mulai Gratis"}
             </Button>
           </div>
 
@@ -146,10 +170,10 @@ export default function PricingPage() {
             <Button
               onClick={handleStartPayment}
               className={`w-full py-6 rounded-xl bg-primary text-on-primary font-bold hover:brightness-110 shadow-lg shadow-primary/20 ${
-                user.plan === "pro" ? "bg-secondary hover:brightness-100 cursor-default shadow-none" : ""
+                mounted && user.plan === "pro" ? "bg-secondary hover:brightness-100 cursor-default shadow-none" : ""
               }`}
             >
-              {user.plan === "pro" ? "Paket Pro Aktif" : "Berlangganan Sekarang"}
+              {mounted && user.plan === "pro" ? "Paket Pro Aktif" : "Berlangganan Sekarang"}
             </Button>
           </div>
         </div>
@@ -319,6 +343,12 @@ export default function PricingPage() {
                     <p className="text-[10px] text-outline mt-0.5">Mandiri, BCA, BNI, BRI</p>
                   </div>
                 </button>
+
+                {checkoutError && (
+                  <p className="text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg p-2.5 text-center leading-normal">
+                    {checkoutError}
+                  </p>
+                )}
 
                 <div className="pt-2">
                   <Button

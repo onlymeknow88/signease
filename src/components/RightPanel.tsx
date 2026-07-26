@@ -1,7 +1,7 @@
 "use client";
 
 import { useESignStore } from "@/lib/store";
-import { Trash2 } from "lucide-react";
+import { Trash2, PenLine, ChevronDown, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { generateTextImage } from "@/lib/utils";
 
@@ -26,6 +26,7 @@ export function RightPanel() {
   const [signerRole, setSignerRole] = useState("Wajib Tanda Tangan");
   const [sizePercent, setSizePercent] = useState(100);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isRequired, setIsRequired] = useState(false);
 
   // Synchronize size slider when selected element changes
   useEffect(() => {
@@ -205,7 +206,7 @@ export function RightPanel() {
               : "border-transparent text-outline hover:text-foreground hover:bg-slate-100"
           }`}
         >
-          PROPERTI ELEMEN
+          PROPERTI BIDANG
         </button>
         <button
           onClick={() => setRightPanelTab("certificate")}
@@ -224,7 +225,7 @@ export function RightPanel() {
         {rightPanelTab === "properties" ? (
           /* PROPERTIES TAB */
           <div className="space-y-6">
-            <h3 className="text-sm font-bold text-on-surface">Properti Elemen</h3>
+            <h3 className="text-sm font-bold text-on-surface">Properti Bidang</h3>
             {selectedAnnotation ? (
               <div className="space-y-5">
                 {selectedAnnotation.type === "text" ? (
@@ -344,65 +345,176 @@ export function RightPanel() {
                 ) : (
                   /* SIGNATURE ANNOTATION PROPERTIES */
                   <>
-                    {/* Signer Info */}
+                    {/* Jenis Bidang dropdown */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-outline">
-                        Nama Penanda Tangan
-                      </label>
-                      <input
-                        type="text"
-                        readOnly
-                        value={user.name || "Felix Ardiansyah"}
-                        className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-slate-50 text-sm text-foreground focus:outline-none"
-                      />
+                      <label className="text-xs font-semibold text-outline">Jenis Bidang</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <PenLine className="w-3.5 h-3.5 text-on-surface-variant" />
+                        </span>
+                        <select
+                          defaultValue="signature"
+                          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface text-xs font-medium focus:border-primary focus:outline-none appearance-none cursor-pointer"
+                        >
+                          <option value="signature">Tanda Tangan</option>
+                          <option value="text">Teks</option>
+                          <option value="initial">Inisial</option>
+                          <option value="date">Tanggal</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-on-surface-variant pointer-events-none" />
+                      </div>
                     </div>
 
-                    {/* Role Settings */}
+                    {/* Dari — signature preview */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-outline">Dari</label>
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl border border-outline-variant bg-surface hover:border-primary cursor-pointer transition-colors">
+                        <div className="w-14 h-7 bg-surface-container rounded-lg overflow-hidden flex items-center justify-center border border-outline-variant/50 shrink-0">
+                          <img
+                            src={selectedAnnotation?.imageDataUrl}
+                            className="w-full h-full object-contain"
+                            alt="Tanda Tangan"
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-on-surface flex-1 truncate">Tanda Tangan Saya</span>
+                        <ChevronDown className="w-3.5 h-3.5 text-on-surface-variant shrink-0" />
+                      </div>
+                      <button className="flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline">
+                        <Plus className="w-3 h-3" />
+                        Buat Baru
+                      </button>
+                    </div>
+
+                    {/* Warna swatches */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-outline block">Warna</label>
+                      <div className="flex items-center gap-2">
+                        {["#004782", "#006c4e", "#000000", "#ba1a1a", "#5c4d9b"].map((c) => (
+                          <button
+                            key={c}
+                            style={{ backgroundColor: c }}
+                            className="w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-transform hover:border-on-surface/30"
+                            title={c}
+                            aria-label={`Warna ${c}`}
+                          />
+                        ))}
+                        <label
+                          className="w-7 h-7 rounded-full border-2 border-outline-variant cursor-pointer hover:scale-110 transition-transform flex items-center justify-center bg-gradient-to-br from-red-400 via-blue-400 to-green-400"
+                          title="Warna Kustom"
+                        >
+                          <input type="color" className="sr-only" />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Ukuran S/M/L */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-outline">Ukuran</label>
+                      <div className="grid grid-cols-3 gap-1 bg-surface-container rounded-xl p-1">
+                        {[
+                          { label: "S", pct: 70 },
+                          { label: "M", pct: 100 },
+                          { label: "L", pct: 140 },
+                        ].map(({ label, pct }) => {
+                          const isSelected = Math.abs(sizePercent - pct) < 20;
+                          return (
+                            <button
+                              key={label}
+                              onClick={() => handleSizeChange(pct)}
+                              className={`
+                                py-2 rounded-lg text-xs font-bold transition-all
+                                ${isSelected
+                                  ? "bg-white text-primary shadow-sm border border-outline-variant"
+                                  : "text-on-surface-variant hover:text-on-surface"
+                                }
+                              `}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Posisi X/Y */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-outline">
-                        Peran
+                        Posisi (Halaman {(selectedAnnotation?.pageIndex ?? 0) + 1})
                       </label>
-                      <select
-                        value={signerRole}
-                        onChange={(e) => setSignerRole(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { axis: "x" as const, label: "X", ratio: selectedAnnotation?.xRatio ?? 0, multiplier: 595 },
+                          { axis: "y" as const, label: "Y", ratio: selectedAnnotation?.yRatio ?? 0, multiplier: 842 },
+                        ].map(({ axis, label, ratio, multiplier }) => (
+                          <div key={axis} className="space-y-0.5">
+                            <span className="text-[10px] text-outline font-medium">{label}</span>
+                            <input
+                              type="number"
+                              value={Math.round(ratio * multiplier)}
+                              onChange={(e) => {
+                                const pt = parseInt(e.target.value);
+                                if (!isNaN(pt) && selectedAnnotation) {
+                                  const r = Math.max(0, Math.min(1, pt / multiplier));
+                                  updateAnnotation(selectedAnnotation.id, {
+                                    [axis === "x" ? "xRatio" : "yRatio"]: r,
+                                  });
+                                }
+                              }}
+                              className="w-full px-3 py-1.5 rounded-lg border border-outline-variant text-xs bg-surface focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Wajib Diisi toggle premium */}
+                    <div className="flex items-start justify-between gap-3 py-0.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-on-surface">Wajib Diisi</p>
+                        <p className="text-[10px] text-on-surface-variant mt-0.5 leading-relaxed">
+                          Pengisi wajib mengisi bidang ini
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsRequired(!isRequired)}
+                        role="switch"
+                        aria-checked={isRequired}
+                        className={`
+                          relative shrink-0 w-10 h-[22px] rounded-full border transition-all duration-200
+                          ${isRequired ? "bg-primary border-primary" : "bg-outline-variant/40 border-outline-variant"}
+                        `}
                       >
-                        <option>Wajib Tanda Tangan</option>
-                        <option>Opsional</option>
-                        <option>Hanya Baca</option>
-                      </select>
+                        <span
+                          className={`
+                            absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow-sm
+                            transition-transform duration-200
+                            ${isRequired ? "translate-x-[18px]" : "translate-x-0"}
+                          `}
+                        />
+                      </button>
                     </div>
                   </>
                 )}
 
-                {/* Shared: Element Size Slider */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <label className="font-semibold text-outline">
-                      Skala Elemen
-                    </label>
-                    <span className="font-bold text-on-surface">
-                      {getSizeLabel(sizePercent)} ({sizePercent}%)
-                    </span>
+                {/* Shared: Size slider only for text (hidden for signature since we have S/M/L) */}
+                {selectedAnnotation?.type === "text" && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-semibold text-outline">Skala Elemen</label>
+                      <span className="font-bold text-on-surface">
+                        {getSizeLabel(sizePercent)} ({sizePercent}%)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={40}
+                      max={200}
+                      value={sizePercent}
+                      onChange={(e) => handleSizeChange(parseInt(e.target.value))}
+                      className="w-full accent-primary cursor-ew-resize h-1 bg-outline-variant rounded-lg appearance-none"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={40}
-                    max={200}
-                    value={sizePercent}
-                    onChange={(e) => handleSizeChange(parseInt(e.target.value))}
-                    className="w-full accent-primary cursor-ew-resize h-1 bg-outline-variant rounded-lg appearance-none"
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => removeAnnotation(selectedAnnotation.id)}
-                    className="w-full py-2.5 border border-error text-error font-semibold text-sm rounded-xl hover:bg-error-container/30 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" /> Hapus Elemen
-                  </button>
-                </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 border border-dashed border-outline-variant rounded-xl bg-surface p-5 text-center">
@@ -420,6 +532,7 @@ export function RightPanel() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-on-surface">Sertifikat Digital (SHA-256)</h3>
             </div>
+
 
             {!pdfFile ? (
               <div className="flex flex-col items-center justify-center h-48 border border-dashed border-outline-variant rounded-xl bg-surface p-5 text-center">
@@ -543,6 +656,19 @@ export function RightPanel() {
           </div>
         )}
       </div>
+
+      {/* Hapus Bidang — full width, visible only when annotation selected */}
+      {selectedAnnotation && (
+        <div className="px-4 py-3 border-t border-outline-variant shrink-0">
+          <button
+            onClick={() => removeAnnotation(selectedAnnotation.id)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-destructive/60 text-destructive text-xs font-semibold hover:bg-destructive/5 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Hapus Bidang
+          </button>
+        </div>
+      )}
 
       {/* Audit Trail Panel */}
       <div className="mt-auto p-4 bg-surface-container-lowest border-t border-outline-variant space-y-4 shrink-0">
