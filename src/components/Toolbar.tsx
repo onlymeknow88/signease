@@ -103,7 +103,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     setRightPanelTab("properties");
     setOpenPopup(openPopup === "signature" ? null : "signature");
     if (savedSignatures.length > 0) {
-      setSelectedSignature(savedSignatures[0], "signature");
+      setSelectedSignature(savedSignatures[0].dataUrl, "signature");
       setPlacingMode(true);
     }
   };
@@ -111,10 +111,10 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
   const handleTextClick = () => {
     setActiveMenu("text");
     setRightPanelTab("properties");
-    
-    // Initialize default text details if not set
-    const details = selectedTextDetails || {
-      text: "Nama Terang",
+
+    // Use empty string as default — user will type directly on canvas (Adobe-style)
+    const details = {
+      text: "",
       color: "#004782",
       size: 24,
       fontFamily: "Poppins",
@@ -122,18 +122,18 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
       isItalic: false,
       isUnderline: false,
     };
-    
-    const { dataUrl } = generateTextImage(
-      details.text,
-      details.size,
-      details.color,
-      details.fontFamily,
-      details.isBold,
-      details.isItalic,
-      details.isUnderline
-    );
-    
-    setSelectedSignature(dataUrl, "text", details);
+
+    // Generate a transparent placeholder image (1x1 transparent PNG)
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 40;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, 200, 40);
+    }
+    const placeholderUrl = canvas.toDataURL("image/png");
+
+    setSelectedSignature(placeholderUrl, "text", details);
     setPlacingMode(true);
   };
 
@@ -226,33 +226,33 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
 
               {savedSignatures.length > 0 && (
                 <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-0.5">
-                  {savedSignatures.map((url, idx) => (
+                  {savedSignatures.map((sig) => (
                     <div
-                      key={idx}
+                      key={sig.id}
                       className={`relative group/sig flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer transition-all bg-surface ${
-                        selectedSignatureUrl === url && selectedSignatureType === "signature" && isPlacingMode
+                        selectedSignatureUrl === sig.dataUrl && selectedSignatureType === "signature" && isPlacingMode
                           ? "border-primary bg-primary/5"
                           : "border-outline-variant hover:border-primary/45"
                       }`}
                       onClick={() => {
-                        setSelectedSignature(url, "signature");
+                        setSelectedSignature(sig.dataUrl, "signature");
                         setPlacingMode(true);
                         setOpenPopup(null);
                       }}
                     >
                       <img
-                        src={url}
-                        alt={`Signature ${idx + 1}`}
+                        src={sig.dataUrl}
+                        alt={sig.name || "Tanda Tangan"}
                         className="h-8 w-auto max-w-[140px] object-contain"
                       />
-                      {selectedSignatureUrl === url && selectedSignatureType === "signature" && isPlacingMode && (
+                      {selectedSignatureUrl === sig.dataUrl && selectedSignatureType === "signature" && isPlacingMode && (
                         <span className="ml-auto text-[9px] font-bold text-primary shrink-0">Aktif</span>
                       )}
                       <button
                         className="absolute top-1 right-1 opacity-0 group-hover/sig:opacity-100 w-4 h-4 rounded-full bg-destructive/10 hover:bg-destructive text-destructive hover:text-white flex items-center justify-center transition-all"
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeSavedSignature(url);
+                          removeSavedSignature(sig.id);
                         }}
                       >
                         <span className="material-symbols-outlined text-[11px]">close</span>

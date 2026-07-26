@@ -4,6 +4,7 @@ import { useESignStore, BillingRecord } from "@/lib/store";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { CertificateManager } from "@/components/CertificateManager";
 import { Button } from "@/components/ui/button";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import {
@@ -23,7 +24,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function AccountPage() {
-  const { user, billingHistory, setPlan, addBillingRecord, setBillingHistory } = useESignStore();
+  const { user, billingHistory, setPlan, addBillingRecord, setBillingHistory, loadCertificates } = useESignStore();
   const { status } = useSession();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -77,6 +78,7 @@ export default function AccountPage() {
       }
     };
     fetchStatus();
+    loadCertificates();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, user.loggedIn]);
 
@@ -344,7 +346,7 @@ export default function AccountPage() {
                     <p className="text-xs font-bold text-outline uppercase tracking-widest">SignEase Free</p>
                     <p className="font-bold text-sm text-on-surface mt-0.5">Paket Gratis</p>
                     <p className="text-[10px] text-on-surface-variant mt-1">
-                      Batasan 5 tanda tangan per bulan
+                      Batasan 1 tanda tangan per bulan
                     </p>
                   </div>
                 </div>
@@ -363,6 +365,11 @@ export default function AccountPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Certificate Manager Card */}
+          <div className="bg-white border border-outline-variant rounded-2xl p-6 shadow-sm">
+            <CertificateManager />
           </div>
         </div>
 

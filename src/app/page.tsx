@@ -195,15 +195,15 @@ export default function LandingPage() {
                 <ul className="space-y-4 mb-8 text-sm text-on-surface-variant font-medium">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-secondary shrink-0" />
-                    <span>Unlimited Signatures</span>
+                    <span>1 Tanda Tangan per bulan</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-secondary shrink-0" />
-                    <span>Client-Side Processing</span>
+                    <span>E-Signature Standar</span>
                   </li>
-                  <li className="flex items-center gap-3 opacity-30 line-through">
-                    <span className="material-symbols-outlined text-[20px] shrink-0">block</span>
-                    <span>Custom Branding &amp; Logos</span>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-secondary shrink-0" />
+                    <span>100% Pemrosesan Lokal</span>
                   </li>
                 </ul>
               </div>
@@ -230,11 +230,11 @@ export default function LandingPage() {
                 <ul className="space-y-4 mb-8 text-sm text-surface-variant font-medium">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-secondary-fixed shrink-0" />
-                    <span>Semua fitur Free</span>
+                    <span>Unlimited Signatures</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-secondary-fixed shrink-0" />
-                    <span>Custom Branding &amp; Logos</span>
+                    <span>Custom Digital Certificate (SHA-256)</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-secondary-fixed shrink-0" />

@@ -22,11 +22,50 @@ model User {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  billingRecords BillingRecord[]
+  accounts        Account[]
+  sessions        Session[]
+  billingRecords  BillingRecord[]
+  certificates    Certificate[]
+  savedSignatures SavedSignature[]
 
   @@map("users")
+}
+
+model SavedSignature {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  name      String?  @db.VarChar(100)
+  dataUrl   String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_signatures")
+}
+
+model Certificate {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  name            String   @db.VarChar(255)
+  commonName      String   @db.VarChar(255)
+  issuer          String   @db.VarChar(255)
+  serialNumber    String   @db.VarChar(100)
+  algorithm       String   @db.VarChar(50)
+  validFrom       DateTime
+  validTo         DateTime
+  isValid         Boolean  @default(true)
+  isSelfSigned    Boolean  @default(false)
+  localStorageKey String   @db.VarChar(100)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([validTo])
+  @@map("certificates")
 }
 
 model Account {

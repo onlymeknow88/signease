@@ -53,6 +53,8 @@ export default function AppWorkspace() {
     signedAt,
     downloadSignedPdf,
     reset,
+    loadCertificates,
+    loadSavedSignatures,
   } = useESignStore();
 
   const [sigPadOpen, setSigPadOpen] = useState(false);
@@ -68,7 +70,7 @@ export default function AppWorkspace() {
     setMounted(true);
   }, []);
 
-  // Sync subscription status with DB on mount
+  // Sync subscription status with DB on mount, and load certificates + signatures
   useEffect(() => {
     if (!mounted || !user.loggedIn) return;
     const syncStatus = async () => {
@@ -84,7 +86,9 @@ export default function AppWorkspace() {
       }
     };
     syncStatus();
-  }, [mounted, user.loggedIn, user.email, user.plan, setPlan]);
+    loadCertificates();
+    loadSavedSignatures();
+  }, [mounted, user.loggedIn, user.email, user.plan, setPlan, loadCertificates, loadSavedSignatures]);
 
   // Guard routing — redirect to login if not authenticated
   useEffect(() => {

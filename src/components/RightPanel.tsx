@@ -4,6 +4,7 @@ import { useESignStore } from "@/lib/store";
 import { Trash2, PenLine, ChevronDown, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { generateTextImage } from "@/lib/utils";
+import { CertificateManager } from "./CertificateManager";
 
 export function RightPanel() {
   const {
@@ -17,6 +18,9 @@ export function RightPanel() {
     setRightPanelTab,
     pdfHash,
     signedAt,
+    certificates,
+    selectedCertificateId,
+    certificateUsedId,
   } = useESignStore();
 
   const selectedAnnotation = annotations.find(
@@ -322,24 +326,39 @@ export function RightPanel() {
                       </div>
                     </div>
 
-                    {/* Font Size Slider */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <label className="font-semibold text-outline">
-                          Ukuran Font
-                        </label>
-                        <span className="font-bold text-on-surface">
-                          {selectedAnnotation.textSize || 24}px
-                        </span>
+                    {/* Font Size Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-outline block">
+                        Ukuran Font
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleTextSizeChange(Math.max(8, (selectedAnnotation.textSize || 24) - 1))}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-outline-variant bg-surface text-on-surface hover:bg-slate-100 transition-colors text-base font-bold shrink-0"
+                          title="Perkecil"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min={8}
+                          max={96}
+                          value={selectedAnnotation.textSize || 24}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value, 10);
+                            if (!isNaN(v) && v >= 8 && v <= 96) handleTextSizeChange(v);
+                          }}
+                          className="flex-1 text-center px-2 py-1.5 rounded-lg border border-outline-variant bg-surface text-sm font-semibold text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <span className="text-xs text-outline shrink-0">px</span>
+                        <button
+                          onClick={() => handleTextSizeChange(Math.min(96, (selectedAnnotation.textSize || 24) + 1))}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-outline-variant bg-surface text-on-surface hover:bg-slate-100 transition-colors text-base font-bold shrink-0"
+                          title="Perbesar"
+                        >
+                          +
+                        </button>
                       </div>
-                      <input
-                        type="range"
-                        min={12}
-                        max={64}
-                        value={selectedAnnotation.textSize || 24}
-                        onChange={(e) => handleTextSizeChange(parseInt(e.target.value))}
-                        className="w-full accent-primary cursor-ew-resize h-1 bg-outline-variant rounded-lg appearance-none"
-                      />
                     </div>
                   </>
                 ) : (
@@ -528,33 +547,33 @@ export function RightPanel() {
           </div>
         ) : (
           /* CERTIFICATE TAB */
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-on-surface">Sertifikat Digital (SHA-256)</h3>
-            </div>
+          <div className="space-y-5">
+            {/* Certificate Manager — always visible */}
+            <CertificateManager />
 
+            {/* Divider when PDF is loaded */}
+            {pdfFile && <div className="border-t border-outline-variant" />}
 
-            {!pdfFile ? (
-              <div className="flex flex-col items-center justify-center h-48 border border-dashed border-outline-variant rounded-xl bg-surface p-5 text-center">
-                <span className="material-symbols-outlined text-outline/50 text-[32px] mb-2">verified_user</span>
-                <p className="text-xs font-semibold text-outline">Tidak Ada Dokumen</p>
-                <p className="text-[11px] text-outline/85 mt-1 leading-normal">
-                  Silakan upload dokumen PDF terlebih dahulu.
-                </p>
-              </div>
-            ) : !pdfHash || annotations.length === 0 ? (
-              <div className="flex flex-col items-center text-center p-5 border border-dashed border-outline-variant rounded-xl bg-slate-50/50 space-y-3">
-                <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
-                  <span className="material-symbols-outlined text-[28px] animate-pulse">lock_open</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Menunggu Tanda Tangan</p>
-                  <p className="text-[11px] text-outline mt-1 leading-relaxed">
-                    Tempatkan tanda tangan pada dokumen, lalu klik tombol **Download** di baris menu atas untuk mengunci integritas dan membubuhkan sertifikat digital lokal.
+            {/* Sertifikat aktif — info untuk user bahwa download dilakukan via toolbar */}
+            {pdfFile && selectedCertificateId !== null && !pdfHash && (() => {
+              const activeCert = certificates.find((c) => c.id === selectedCertificateId);
+              return activeCert ? (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-primary flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px]">verified_user</span>
+                    Sertifikat Aktif
+                  </p>
+                  <p className="text-[11px] text-foreground font-medium">{activeCert.name}</p>
+                  <p className="text-[10px] text-outline">CN: {activeCert.commonName}</p>
+                  <p className="text-[10px] text-outline/80 mt-1 leading-relaxed">
+                    Klik tombol <strong>Download</strong> di toolbar atas untuk menandatangani dokumen dengan sertifikat ini.
                   </p>
                 </div>
-              </div>
-            ) : (
+              ) : null;
+            })()}
+
+            {/* Post-signing state */}
+            {pdfFile && pdfHash && (
               <div className="space-y-5">
                 {/* Verification Badge */}
                 <div className="bg-emerald-50 border border-emerald-200/60 p-4 rounded-xl flex items-center gap-3">
@@ -563,23 +582,49 @@ export function RightPanel() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-800">Dokumen Terverifikasi</p>
-                    <p className="text-[10px] text-emerald-600/90 font-medium">Integritas Terjamin (Lokal)</p>
+                    <p className="text-[10px] text-emerald-600/90 font-medium">
+                      {certificateUsedId !== null ? "TTE Tidak Tersertifikasi (ByteRange / Adobe)" : "Integritas Terjamin (Lokal)"}
+                    </p>
                   </div>
                 </div>
 
-                {/* Certificate Details */}
+                {/* Certificate used for signing badge */}
+                {certificateUsedId !== null && (() => {
+                  const usedCert = certificates.find((c) => c.id === certificateUsedId);
+                  return usedCert ? (
+                    <div className="space-y-2">
+                      <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-[11px] space-y-0.5">
+                        <p className="font-semibold text-blue-800 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">verified</span>
+                          Ditandatangani dengan Sertifikat
+                        </p>
+                        <p className="text-blue-600">{usedCert.name}</p>
+                        <p className="text-blue-500/80">CN: {usedCert.commonName}</p>
+                      </div>
+                      {/* TTE status disclaimer */}
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[10px] text-amber-700 leading-relaxed">
+                        <p className="font-semibold mb-0.5">⚠️ TTE Tidak Tersertifikasi (PP 71/2019)</p>
+                        Sertifikat ini <strong>tidak berinduk ke PSrE Induk Komdigi</strong>. Dapat dibaca di Adobe Acrobat, namun tidak berlaku untuk dokumen resmi pemerintah. Untuk keperluan hukum formal, gunakan layanan PSrE terakreditasi (Privy, VIDA, BSrE).
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Signer details */}
                 <div className="bg-white rounded-xl border border-outline-variant p-3.5 space-y-3.5 shadow-sm text-xs">
                   <div>
                     <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-0.5">Penanda Tangan</span>
-                    <span className="font-semibold text-foreground">{user.name || "Felix Ardiansyah"}</span>
+                    <span className="font-semibold text-foreground">{user.name || "-"}</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-0.5">Email</span>
-                    <span className="font-semibold text-foreground truncate block">{user.email || "felix.ardiansyah@corporate.com"}</span>
+                    <span className="font-semibold text-foreground truncate block">{user.email || "-"}</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-0.5">Metode</span>
-                    <span className="font-semibold text-foreground">Kriptografi Klien (Client-Side)</span>
+                    <span className="font-semibold text-foreground">
+                      {certificateUsedId !== null ? "PKI (PKCS#7)" : "Kriptografi Klien (Client-Side)"}
+                    </span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-0.5">Ditandatangani Pada</span>
@@ -598,14 +643,13 @@ export function RightPanel() {
                   </div>
                 </div>
 
-                {/* SHA-256 Hash Display */}
+                {/* SHA-256 Hash */}
                 <div className="bg-slate-950 text-slate-100 rounded-xl p-3.5 space-y-2 relative overflow-hidden font-mono shadow-inner">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">SHA-256 HASH</span>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(pdfHash || "");
-                        alert("Hash berhasil disalin ke papan klip!");
                       }}
                       className="text-[10px] font-semibold text-primary hover:text-white transition-colors"
                     >
@@ -622,8 +666,8 @@ export function RightPanel() {
                   <div className="absolute -right-4 -bottom-4 opacity-5 text-secondary">
                     <span className="material-symbols-outlined text-[80px]">verified</span>
                   </div>
-                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest font-bold">OFFICIAL SEAL</p>
-                  <p className="text-sm font-bold text-secondary mt-1">{user.name?.toUpperCase() || "FELIX ARDIANSYAH"}</p>
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">OFFICIAL SEAL</p>
+                  <p className="text-sm font-bold text-secondary mt-1">{user.name?.toUpperCase() || "-"}</p>
                   <p className="text-[10px] text-secondary/80 mt-0.5">
                     {signedAt
                       ? new Date(signedAt).toLocaleDateString("en-US", {
@@ -633,7 +677,6 @@ export function RightPanel() {
                         })
                       : "-"}
                   </p>
-
                   {user.plan === "free" ? (
                     <div className="mt-3 bg-slate-900/90 text-white rounded-lg p-2.5 text-left text-[10px] space-y-1.5 z-10 border border-slate-700">
                       <p className="font-semibold flex items-center gap-1">
@@ -641,7 +684,7 @@ export function RightPanel() {
                         Fitur Premium Gated
                       </p>
                       <p className="text-white/80 leading-normal">
-                        Official Seal watermark ditambahkan secara otomatis pada sertifikat PDF jika Anda berlangganan paket **Pro**.
+                        Official Seal watermark ditambahkan secara otomatis pada sertifikat PDF jika Anda berlangganan paket Pro.
                       </p>
                     </div>
                   ) : (
@@ -650,6 +693,21 @@ export function RightPanel() {
                       Sertifikat Valid &amp; Aktif
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Waiting state — PDF loaded, no cert selected, not yet signed */}
+            {pdfFile && !pdfHash && selectedCertificateId === null && (
+              <div className="flex flex-col items-center text-center p-5 border border-dashed border-outline-variant rounded-xl bg-slate-50/50 space-y-3">
+                <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+                  <span className="material-symbols-outlined text-[28px] animate-pulse">lock_open</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Menunggu Tanda Tangan</p>
+                  <p className="text-[11px] text-outline mt-1 leading-relaxed">
+                    Pilih sertifikat di atas lalu klik <strong>Download</strong> di toolbar atas untuk menandatangani dengan PKI, atau langsung klik Download untuk tanda tangan visual biasa.
+                  </p>
                 </div>
               </div>
             )}

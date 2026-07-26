@@ -107,7 +107,7 @@ export default function PricingPage() {
               <ul className="space-y-4 mb-8 text-sm text-on-surface-variant font-medium">
                 <li className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-secondary text-[20px] fill-secondary">check_circle</span>
-                  <span>5 Dokumen per bulan</span>
+                  <span>1 Tanda Tangan per bulan</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-secondary text-[20px] fill-secondary">check_circle</span>
@@ -158,11 +158,7 @@ export default function PricingPage() {
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-secondary text-[20px] fill-secondary">check_circle</span>
-                  <span>Unduh Bersih (Tanpa Watermark)</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-secondary text-[20px] fill-secondary">check_circle</span>
-                  <span>Prioritas Bantuan 24/7</span>
+                  <span>Priority Support 24/7</span>
                 </li>
               </ul>
             </div>

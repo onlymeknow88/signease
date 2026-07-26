@@ -1,9 +1,16 @@
 "use client";
 
 import { create } from "zustand";
-import { SignatureAnnotation } from "./types";
+import { SignatureAnnotation, DigitalCertificate } from "./types";
 import { nanoid } from "nanoid";
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
+import {
+  signPDFWithCertificate,
+  saveP12ToLocalStorage,
+  loadP12FromLocalStorage,
+  removeP12FromLocalStorage,
+  validateP12Password,
+} from "./crypto";
 
 export interface BillingRecord {
   id: string;
@@ -19,6 +26,13 @@ export interface UserState {
   plan: "free" | "pro";
   loggedIn: boolean;
   provider: "google" | "email" | null;
+}
+
+export interface SavedSignatureRecord {
+  id: number;
+  name: string | null;
+  dataUrl: string;
+  createdAt: string;
 }
 
 const getInitialUser = (): UserState => {
@@ -77,8 +91,9 @@ interface ESignStore {
   totalPages: number;
   currentPage: number;
 
-  // Signature library (saved signatures)
-  savedSignatures: string[]; // base64 PNG data URLs
+  // Signature library (persisted to DB)
+  savedSignatures: SavedSignatureRecord[];
+  isSignatureLoading: boolean;
   selectedSignatureUrl: string | null;
   selectedSignatureType: "signature" | "text" | null;
   selectedTextDetails: {
@@ -91,6 +106,11 @@ interface ESignStore {
     isUnderline: boolean;
   } | null;
 
+  // Pending certificate — set when user applies signature, used at download
+  pendingCertId: number | null;
+  pendingCertPassword: string | null;
+  setPendingCert: (id: number | null, password: string | null) => void;
+
   // Annotations placed on the PDF
   annotations: SignatureAnnotation[];
   selectedAnnotationId: string | null;
@@ -102,13 +122,13 @@ interface ESignStore {
   redo: () => void;
 
   // UI state
-  isPlacingMode: boolean; // true = next click on PDF places the signature
-  pdfScale: number; // Zoom level
+  isPlacingMode: boolean;
+  pdfScale: number;
   activeTool: "select" | "text" | "cross" | "check" | "circle" | "line" | "dot" | "signature" | "initial" | "date" | "box" | "checkbox";
-  activeColor: string; // Hex color for drawing/text
+  activeColor: string;
   rightPanelTab: "properties" | "certificate";
 
-  // NEW: Sidebar & thumbnail panel state
+  // Sidebar & thumbnail panel state
   sidebarCollapsed: boolean;
   thumbnailPanelOpen: boolean;
   viewMode: "single" | "grid";
@@ -117,9 +137,13 @@ interface ESignStore {
   user: UserState;
   billingHistory: BillingRecord[];
 
-  // Digital certificate
+  // Digital certificate (PKI)
   pdfHash: string | null;
   signedAt: string | null;
+  certificates: DigitalCertificate[];
+  selectedCertificateId: number | null;
+  isCertificateLoading: boolean;
+  certificateUsedId: number | null;
 
   // Actions
   setPdfFile: (file: File | null) => void;
@@ -134,8 +158,11 @@ interface ESignStore {
   setThumbnailPanelOpen: (val: boolean) => void;
   setViewMode: (mode: "single" | "grid") => void;
 
-  addSavedSignature: (dataUrl: string) => void;
-  removeSavedSignature: (dataUrl: string) => void;
+  // Signature library actions (DB-backed)
+  loadSavedSignatures: () => Promise<void>;
+  addSavedSignature: (dataUrl: string, name?: string) => Promise<void>;
+  removeSavedSignature: (id: number) => Promise<void>;
+
   setSelectedSignature: (
     dataUrl: string | null,
     type?: "signature" | "text",
@@ -166,19 +193,29 @@ interface ESignStore {
   setBillingHistory: (history: BillingRecord[]) => void;
   setPdfHash: (hash: string | null) => void;
 
-  // Main signing execution
+  // Certificate actions
+  loadCertificates: () => Promise<void>;
+  addCertificate: (cert: DigitalCertificate, p12Base64: string) => void;
+  removeCertificate: (id: number) => Promise<void>;
+  selectCertificate: (id: number | null) => void;
+  validateCertificatePassword: (id: number, password: string) => boolean;
+
+  // Main signing execution — uses pendingCertPassword from store
   downloadSignedPdf: () => Promise<{ hash: string; bytes: Uint8Array } | null>;
 }
 
-export const useESignStore = create<ESignStore>((set) => ({
+export const useESignStore = create<ESignStore>((set, get) => ({
   pdfFile: null,
   pdfBytes: null,
   totalPages: 0,
   currentPage: 0,
   savedSignatures: [],
+  isSignatureLoading: false,
   selectedSignatureUrl: null,
   selectedSignatureType: "signature",
   selectedTextDetails: null,
+  pendingCertId: null,
+  pendingCertPassword: null,
   annotations: [],
   selectedAnnotationId: null,
   pdfScale: 1.2,
@@ -196,6 +233,10 @@ export const useESignStore = create<ESignStore>((set) => ({
   billingHistory: getInitialBilling(),
   pdfHash: null,
   signedAt: null,
+  certificates: [],
+  selectedCertificateId: null,
+  isCertificateLoading: false,
+  certificateUsedId: null,
 
   setPdfFile: (file) => set({ pdfFile: file }),
   setPdfBytes: (bytes) => set({ pdfBytes: bytes }),
@@ -235,20 +276,61 @@ export const useESignStore = create<ESignStore>((set) => ({
       return {};
     }),
 
-  addSavedSignature: (dataUrl) =>
-    set((s) => ({
-      savedSignatures: s.savedSignatures.includes(dataUrl)
-        ? s.savedSignatures
-        : [...s.savedSignatures, dataUrl],
-      selectedSignatureUrl: dataUrl,
-    })),
+  setPendingCert: (id, password) => set({ pendingCertId: id, pendingCertPassword: password }),
 
-  removeSavedSignature: (dataUrl) =>
-    set((s) => ({
-      savedSignatures: s.savedSignatures.filter((u) => u !== dataUrl),
-      selectedSignatureUrl:
-        s.selectedSignatureUrl === dataUrl ? null : s.selectedSignatureUrl,
-    })),
+  // Signature library — DB-backed
+  loadSavedSignatures: async () => {
+    set({ isSignatureLoading: true });
+    try {
+      const res = await fetch("/api/signatures");
+      if (!res.ok) return;
+      const data: SavedSignatureRecord[] = await res.json();
+      set({ savedSignatures: data });
+    } catch {
+      // silently ignore
+    } finally {
+      set({ isSignatureLoading: false });
+    }
+  },
+
+  addSavedSignature: async (dataUrl, name) => {
+    try {
+      const res = await fetch("/api/signatures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl, name: name ?? null }),
+      });
+      if (!res.ok) return;
+      const record: SavedSignatureRecord = await res.json();
+      set((s) => ({
+        savedSignatures: [record, ...s.savedSignatures],
+        selectedSignatureUrl: dataUrl,
+        selectedSignatureType: "signature",
+      }));
+    } catch {
+      // silently ignore — still set selectedSignatureUrl so placing works
+      set({
+        selectedSignatureUrl: dataUrl,
+        selectedSignatureType: "signature",
+      });
+    }
+  },
+
+  removeSavedSignature: async (id) => {
+    try {
+      const res = await fetch(`/api/signatures?id=${id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      set((s) => ({
+        savedSignatures: s.savedSignatures.filter((sig) => sig.id !== id),
+        selectedSignatureUrl:
+          s.savedSignatures.find((sig) => sig.id === id)?.dataUrl === s.selectedSignatureUrl
+            ? null
+            : s.selectedSignatureUrl,
+      }));
+    } catch {
+      // silently ignore
+    }
+  },
 
   setSelectedSignature: (dataUrl, type = "signature", textDetails = null) =>
     set({
@@ -389,8 +471,65 @@ export const useESignStore = create<ESignStore>((set) => ({
 
   setPdfHash: (hash) => set({ pdfHash: hash }),
 
+  // Certificate actions
+  loadCertificates: async () => {
+    set({ isCertificateLoading: true });
+    try {
+      const res = await fetch("/api/certificates");
+      if (!res.ok) return;
+      const data = await res.json();
+      const certs: DigitalCertificate[] = data.map(
+        (c: DigitalCertificate & { validFrom: string; validTo: string }) => ({
+          ...c,
+          validFrom: new Date(c.validFrom),
+          validTo: new Date(c.validTo),
+        })
+      );
+      set({ certificates: certs });
+    } catch {
+      // silently ignore — user may not be logged in yet
+    } finally {
+      set({ isCertificateLoading: false });
+    }
+  },
+
+  addCertificate: (cert, p12Base64) => {
+    saveP12ToLocalStorage(cert.localStorageKey, p12Base64);
+    set((s) => ({ certificates: [cert, ...s.certificates] }));
+  },
+
+  removeCertificate: async (id) => {
+    try {
+      const res = await fetch(`/api/certificates/${id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      const { localStorageKey } = await res.json();
+      removeP12FromLocalStorage(localStorageKey);
+      set((s) => ({
+        certificates: s.certificates.filter((c) => c.id !== id),
+        selectedCertificateId:
+          s.selectedCertificateId === id ? null : s.selectedCertificateId,
+        certificateUsedId:
+          s.certificateUsedId === id ? null : s.certificateUsedId,
+      }));
+    } catch {
+      // ignore
+    }
+  },
+
+  selectCertificate: (id) => set({ selectedCertificateId: id }),
+
+  validateCertificatePassword: (id, password) => {
+    const { certificates } = useESignStore.getState();
+    const cert = certificates.find((c) => c.id === id);
+    if (!cert) return false;
+    const p12 = loadP12FromLocalStorage(cert.localStorageKey);
+    if (!p12) return false;
+    return validateP12Password(p12, password);
+  },
+
   downloadSignedPdf: async () => {
-    const { pdfBytes, annotations, pdfFile, user } = useESignStore.getState();
+    const { pdfBytes, annotations, pdfFile, user, selectedCertificateId, pendingCertId, pendingCertPassword, certificates } =
+      useESignStore.getState();
     if (!pdfBytes) return null;
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
@@ -458,19 +597,42 @@ export const useESignStore = create<ESignStore>((set) => ({
       }
     }
 
-    // 3. Save modified PDF bytes
-    const finalBytes = await pdfDoc.save();
+    // 3. Save modified PDF bytes (visual annotations baked in)
+    const annotatedBytes = await pdfDoc.save();
 
-    // 4. Calculate SHA-256 digest
-    const hashBuffer = await crypto.subtle.digest("SHA-256", finalBytes.buffer as ArrayBuffer);
+    // 4. Optionally apply PKCS#7 digital signature using pendingCert from store
+    let outputBytes: Uint8Array = annotatedBytes;
+    let certUsedId: number | null = null;
+
+    // Use pendingCertId/pendingCertPassword (set during signature apply step)
+    // Fall back to selectedCertificateId if pending not set
+    const certId = pendingCertId ?? selectedCertificateId;
+    const certPassword = pendingCertPassword;
+
+    if (certId !== null && certPassword) {
+      const cert = certificates.find((c) => c.id === certId);
+      if (cert) {
+        const p12Base64 = loadP12FromLocalStorage(cert.localStorageKey);
+        if (p12Base64) {
+          const result = await signPDFWithCertificate(annotatedBytes, p12Base64, certPassword);
+          if (result.success && result.signedPdfBytes) {
+            outputBytes = result.signedPdfBytes;
+            certUsedId = certId;
+          }
+        }
+      }
+    }
+
+    // 5. Calculate SHA-256 digest of the final bytes
+    const hashBuffer = await crypto.subtle.digest("SHA-256", outputBytes.buffer as ArrayBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
     const timestamp = new Date().toISOString();
-    set({ pdfHash: hashHex, signedAt: timestamp });
+    set({ pdfHash: hashHex, signedAt: timestamp, certificateUsedId: certUsedId });
 
-    // 5. Trigger download
-    const blob = new Blob([finalBytes.buffer as ArrayBuffer], { type: "application/pdf" });
+    // 6. Trigger download
+    const blob = new Blob([outputBytes.buffer as ArrayBuffer], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -478,6 +640,6 @@ export const useESignStore = create<ESignStore>((set) => ({
     a.click();
     URL.revokeObjectURL(url);
 
-    return { hash: hashHex, bytes: finalBytes };
+    return { hash: hashHex, bytes: outputBytes };
   },
 }));

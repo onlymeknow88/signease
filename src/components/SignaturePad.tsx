@@ -11,8 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Eraser, Pen, Upload, Check } from "lucide-react";
+import { Eraser, Pen, Upload, Check, ShieldCheck, ChevronLeft } from "lucide-react";
 import { useESignStore } from "@/lib/store";
+import { Input } from "@/components/ui/input";
 
 interface SignaturePadProps {
   onClose: () => void;
@@ -31,7 +32,7 @@ const FONT_IMPORT =
 export function SignaturePad({ onClose }: SignaturePadProps) {
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addSavedSignature, setPlacingMode, user } = useESignStore();
+  const { addSavedSignature, setPlacingMode, setPendingCert, certificates, validateCertificatePassword, user } = useESignStore();
 
   const [typedName, setTypedName] = useState("");
   const [selectedFont, setSelectedFont] = useState(TYPED_FONTS[0]);
@@ -41,8 +42,15 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
 
   // Adobe Digitally Signed metadata states
-  const [signerName, setSignerName] = useState(user.name || "Felix Ardiansyah");
+  const [signerName, setSignerName] = useState(user.name || "");
   const [useAdobeStyle, setUseAdobeStyle] = useState(true);
+
+  // Step 2 — cert selector
+  const [step, setStep] = useState<"draw" | "cert">("draw");
+  const [pendingDataUrl, setPendingDataUrl] = useState<string | null>(null);
+  const [selectedCertId, setSelectedCertId] = useState<number | null>(null);
+  const [certPassword, setCertPassword] = useState("");
+  const [certPasswordError, setCertPasswordError] = useState("");
 
   // Helper to generate combined Adobe-style signature card
   const generateAdobeStyleSignature = useCallback((sigDataUrl: string): Promise<string> => {
@@ -164,10 +172,34 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
       if (useAdobeStyle) {
         dataUrl = await generateAdobeStyleSignature(dataUrl);
       }
-      addSavedSignature(dataUrl);
-      setPlacingMode(true);
-      onClose();
+      // Go to step 2 — cert selector
+      setPendingDataUrl(dataUrl);
+      setStep("cert");
     }
+  };
+
+  const handleConfirmCert = async () => {
+    if (!pendingDataUrl) return;
+
+    // Validate password if cert selected
+    if (selectedCertId !== null) {
+      if (!certPassword) {
+        setCertPasswordError("Password diperlukan");
+        return;
+      }
+      const valid = validateCertificatePassword(selectedCertId, certPassword);
+      if (!valid) {
+        setCertPasswordError("Password salah");
+        return;
+      }
+    }
+
+    // Save signature to DB
+    await addSavedSignature(pendingDataUrl);
+    // Store pending cert for download
+    setPendingCert(selectedCertId, selectedCertId !== null ? certPassword : null);
+    setPlacingMode(true);
+    onClose();
   };
 
   return (
@@ -176,7 +208,7 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link rel="stylesheet" href={FONT_IMPORT} />
 
-      <Dialog open={true} onOpenChange={(val) => { if (!val) onClose(); }}>
+      <Dialog open={step === "draw"} onOpenChange={(val) => { if (!val) onClose(); }}>
         <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden rounded-2xl border border-border/60 shadow-2xl">
           <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle className="text-xl font-semibold flex items-center gap-2">
@@ -377,12 +409,12 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
                 <label className="text-xs font-semibold text-muted-foreground">
                   Nama Penandatangan
                 </label>
-                <input
+                 <Input
                   type="text"
                   value={signerName}
-                  onChange={(e) => setSignerName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSignerName(e.target.value)}
                   placeholder="Masukkan nama Anda..."
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full mt-1"
                 />
               </div>
             )}
@@ -403,11 +435,119 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
               className="rounded-xl gap-2 glow-primary"
             >
               <Check className="w-4 h-4" />
-              Gunakan Tanda Tangan
+              Lanjutkan
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Step 2 — Certificate selector dialog */}
+      {step === "cert" && (
+        <Dialog open={true} onOpenChange={() => setStep("draw")}>
+          <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden rounded-2xl border border-border/60 shadow-2xl">
+            <DialogHeader className="px-6 pt-6 pb-0">
+              <DialogTitle className="text-base font-semibold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                Pilih Sertifikat Digital (Opsional)
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-[11px] text-outline leading-relaxed">
+                Pilih sertifikat untuk menandatangani dokumen secara digital saat diunduh. Bisa dilewati jika hanya butuh tanda tangan visual.
+              </p>
+
+              {/* None option */}
+              <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-lg border border-border hover:border-primary/40 transition-colors">
+                <input
+                  type="radio"
+                  name="cert-step"
+                  checked={selectedCertId === null}
+                  onChange={() => { setSelectedCertId(null); setCertPassword(""); setCertPasswordError(""); }}
+                  className="accent-primary"
+                />
+                <span className="text-sm text-outline">Tanpa sertifikat (tanda tangan visual saja)</span>
+              </label>
+
+              {/* Certificate options */}
+              {certificates.filter((c) => new Date(c.validTo) > new Date()).map((cert) => (
+                <label
+                  key={cert.id}
+                  className={`flex items-start gap-2 cursor-pointer p-2.5 rounded-lg border transition-colors ${
+                    selectedCertId === cert.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="cert-step"
+                    checked={selectedCertId === cert.id}
+                    onChange={() => { setSelectedCertId(cert.id); setCertPasswordError(""); }}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">{cert.name}</p>
+                    <p className="text-[10px] text-outline">CN: {cert.commonName}</p>
+                  </div>
+                </label>
+              ))}
+
+              {certificates.filter((c) => new Date(c.validTo) > new Date()).length === 0 && (
+                <p className="text-[11px] text-outline text-center py-2">
+                  Belum ada sertifikat aktif. Buat dulu di tab Sertifikat.
+                </p>
+              )}
+
+              {/* Password input when cert selected */}
+              {selectedCertId !== null && (
+                <div className="space-y-1 pt-1">
+                  <label className="text-[11px] font-medium text-foreground">Password Sertifikat *</label>
+                   <Input
+                    type="password"
+                    placeholder="Masukkan password .p12"
+                    value={certPassword}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setCertPassword(e.target.value); setCertPasswordError(""); }}
+                    className="w-full mt-1.5"
+                    autoFocus
+                  />
+                  {certPasswordError && <p className="text-[10px] text-red-500">{certPasswordError}</p>}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="px-6 pb-6 pt-4 flex justify-between gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep("draw")}
+                className="rounded-xl gap-1.5"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Kembali
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    setSelectedCertId(null);
+                    await handleConfirmCert();
+                  }}
+                  className="rounded-xl text-xs"
+                >
+                  Lewati
+                </Button>
+                <Button
+                  onClick={handleConfirmCert}
+                  className="rounded-xl gap-2 glow-primary"
+                >
+                  <Check className="w-4 h-4" />
+                  Konfirmasi
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

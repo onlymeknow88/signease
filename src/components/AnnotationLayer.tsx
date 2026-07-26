@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useESignStore } from "@/lib/store";
 import { SignatureAnnotation } from "@/lib/types";
-import { X, Move } from "lucide-react";
 import { generateTextImage } from "@/lib/utils";
 
 // Annotation overlay on a single PDF page
@@ -22,6 +21,7 @@ export function AnnotationLayer({
     annotations,
     isPlacingMode,
     selectedSignatureUrl,
+    selectedSignatureType,
     activeTool,
     addAnnotation,
     updateAnnotation,
@@ -64,24 +64,47 @@ export function AnnotationLayer({
         const type = storeState.selectedSignatureType || "signature";
         const details = storeState.selectedTextDetails;
 
+        // For text type, use fixed size (like Adobe PDF text field)
+        if (type === "text") {
+          sigW = 180;
+          sigH = 40;
+        }
+
+        // Text annotations: place top-left at cursor (I-beam behaviour).
+        // Signature annotations: center on cursor (crosshair behaviour).
+        const xOffset = type === "text" ? 0 : sigW / 2;
+        const yOffset = type === "text" ? 0 : sigH / 2;
+
         addAnnotation({
           pageIndex,
-          xRatio: Math.max(0, Math.min(1, (x - sigW / 2) / rect.width)),
-          yRatio: Math.max(0, Math.min(1, (y - sigH / 2) / rect.height)),
+          xRatio: Math.max(0, Math.min(1 - sigW / rect.width, (x - xOffset) / rect.width)),
+          yRatio: Math.max(0, Math.min(1 - sigH / rect.height, (y - yOffset) / rect.height)),
           widthRatio: sigW / rect.width,
           heightRatio: sigH / rect.height,
           imageDataUrl: selectedSignatureUrl,
           type,
-          ...(type === "text" && details ? {
-            text: details.text,
-            textColor: details.color,
-            textSize: details.size,
-            fontFamily: details.fontFamily,
-            isBold: details.isBold,
-            isItalic: details.isItalic,
-            isUnderline: details.isUnderline,
+          ...(type === "text" ? {
+            text: details?.text ?? "",
+            textColor: details?.color ?? "#004782",
+            textSize: details?.size ?? 24,
+            fontFamily: details?.fontFamily ?? "Poppins",
+            isBold: details?.isBold ?? false,
+            isItalic: details?.isItalic ?? false,
+            isUnderline: details?.isUnderline ?? false,
           } : {})
         });
+
+        // If placing empty text, auto-trigger editing mode after annotation is added
+        if (type === "text" && (!details?.text || details.text === "")) {
+          // Small delay to let annotation render first
+          setTimeout(() => {
+            const latestAnnotations = useESignStore.getState().annotations;
+            const newAnn = latestAnnotations[latestAnnotations.length - 1];
+            if (newAnn) {
+              useESignStore.getState().setSelectedAnnotationId(newAnn.id);
+            }
+          }, 50);
+        }
       };
     },
     [isPlacingMode, selectedSignatureUrl, activeTool, pageIndex, addAnnotation]
@@ -91,7 +114,9 @@ export function AnnotationLayer({
     <div
       className={`absolute inset-0 z-10 ${
         isPlacingMode
-          ? "cursor-crosshair"
+          ? selectedSignatureType === "text"
+            ? "cursor-text"
+            : "cursor-crosshair"
           : "pointer-events-none"
       }`}
       onClick={handleContainerClick}
@@ -110,7 +135,9 @@ export function AnnotationLayer({
       {/* Placing mode overlay hint */}
       {isPlacingMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-full shadow-lg pointer-events-none animate-bounce z-20">
-          Klik untuk menempatkan tanda tangan
+          {useESignStore.getState().selectedSignatureType === "text"
+            ? "Klik untuk menempatkan kolom teks"
+            : "Klik untuk menempatkan tanda tangan"}
         </div>
       )}
     </div>
@@ -137,7 +164,9 @@ function DraggableAnnotation({
   const resizeStart = useRef<{ mx: number; my: number; wR: number; hR: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(
+    annotation.type === "text" && (!annotation.text || annotation.text === "")
+  );
   const [editValue, setEditValue] = useState(annotation.text || "");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -159,7 +188,11 @@ function DraggableAnnotation({
 
   const handleFinishEdit = () => {
     setIsEditing(false);
-    if (!editValue.trim()) return; // Don't allow empty text
+    if (!editValue.trim()) {
+      // Remove empty text annotation — same as Adobe PDF behavior
+      onRemove();
+      return;
+    }
     const size = annotation.textSize || 24;
     const color = annotation.textColor || "#1a1a2e";
     const fontFamily = annotation.fontFamily || "Poppins";
@@ -300,8 +333,8 @@ function DraggableAnnotation({
       ref={elRef}
       className={`absolute group/ann select-none pointer-events-auto transition-all duration-75 ${
         isDragging || isResizing
-          ? "opacity-95 shadow-2xl z-50 scale-[1.01]"
-          : "shadow-md hover:shadow-lg z-20"
+          ? `opacity-95 z-50 scale-[1.01] ${annotation.type !== "text" ? "shadow-2xl" : ""}`
+          : `z-20 ${annotation.type !== "text" ? "shadow-md hover:shadow-lg" : ""}`
       }`}
       style={{
         left: `${annotation.xRatio * 100}%`,
@@ -333,7 +366,7 @@ function DraggableAnnotation({
 
           {/* Floating Badge Tag */}
           {!isDragging && !isResizing && (
-            <div 
+            <div
               className={`absolute -top-9 left-0 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-md z-30 select-none ${
                 annotation.type === "text" ? "bg-secondary" : "bg-primary"
               }`}
@@ -359,12 +392,14 @@ function DraggableAnnotation({
               handleFinishEdit();
             } else if (e.key === "Escape") {
               setIsEditing(false);
+              onRemove(); // Cancel = remove empty annotation
             }
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="w-full h-full bg-white/95 border border-primary text-center outline-none rounded px-1 text-sm text-foreground"
+          placeholder="Ketik teks di sini..."
+          className="w-full h-full bg-white/95 border-2 border-primary border-dashed outline-none rounded px-2 text-sm text-foreground"
           style={{
-            color: annotation.textColor || "#1a1a2e",
+            color: annotation.textColor || "#004782",
             fontFamily: annotation.fontFamily || "Poppins",
             fontWeight: annotation.isBold === true ? "bold" : "normal",
             fontStyle: annotation.isItalic ? "italic" : "normal",
@@ -373,6 +408,19 @@ function DraggableAnnotation({
             lineHeight: 1,
           }}
         />
+      ) : annotation.type === "text" && (!annotation.text || annotation.text === "") ? (
+        /* Empty text placeholder — dashed border like Adobe PDF */
+        <div
+          className="w-full h-full border-2 border-dashed border-primary/60 bg-primary/5 rounded flex items-center justify-center cursor-text"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
+        >
+          <span className="text-primary/40 text-xs font-medium select-none pointer-events-none">
+            Klik untuk mengetik teks...
+          </span>
+        </div>
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img

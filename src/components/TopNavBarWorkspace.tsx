@@ -1,13 +1,24 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useESignStore } from "@/lib/store";
 import {
-  ZoomIn, ZoomOut, Undo2, Redo2, Download, Share2,
-  FileText, Loader2, ChevronDown, CheckCircle, FileBadge2,
+  CheckCircle,
+  ChevronDown,
+  Download,
+  FileBadge2,
   FileDown,
+  FileText,
+  Loader2,
+  Redo2,
+  Share2,
+  ShieldCheck,
+  Undo2,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import Link from "next/link";
+import { useESignStore } from "@/lib/store";
 
 export function TopNavBarWorkspace() {
   const {
@@ -62,6 +73,8 @@ export function TopNavBarWorkspace() {
   const handleDownloadPdf = async () => {
     if (!pdfFile || isDownloading) return;
     setDownloadOpen(false);
+    // pendingCertPassword is already set in store from SignaturePad cert step
+    // downloadSignedPdf reads it internally — no dialog needed here
     setIsDownloading(true);
     try {
       await downloadSignedPdf();
@@ -172,6 +185,17 @@ export function TopNavBarWorkspace() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2 ml-auto shrink-0">
+        {/* Verifikasi PDF */}
+        {/* <Link
+          href="/verify"
+          target="_blank"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-outline-variant text-on-surface-variant rounded-lg hover:border-emerald-500 hover:text-emerald-600 transition-colors"
+          title="Verifikasi tanda tangan digital PDF"
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span className="hidden sm:block">Verifikasi PDF</span>
+        </Link> */}
+
         {/* Bagikan — aktif, buka modal */}
         <button
           onClick={() => setShareModalOpen(true)}
@@ -249,6 +273,7 @@ export function TopNavBarWorkspace() {
           </div>
         </div>
       )}
+
     </header>
   );
 }

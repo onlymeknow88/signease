@@ -37,3 +37,41 @@ export interface PDFPageInfo {
   width: number;
   height: number;
 }
+
+export interface DigitalCertificate {
+  id: number;
+  name: string;
+  commonName: string;
+  issuer: string;
+  serialNumber: string;
+  algorithm: string;
+  validFrom: Date;
+  validTo: Date;
+  isValid: boolean;
+  isSelfSigned: boolean;
+  localStorageKey: string;
+}
+
+export interface CertificateFormData {
+  name: string;
+  commonName: string;
+  organization?: string;
+  organizationalUnit?: string;
+  country?: string;
+  email?: string;
+  password: string;
+  validityDays: number;
+}
+
+export interface SigningResult {
+  success: boolean;
+  signedPdfBytes?: Uint8Array;
+  certificateInfo?: {
+    commonName: string;
+    serialNumber: string;
+    algorithm: string;
+    timestamp: string;
+  };
+  documentHash: string;
+  error?: string;
+}

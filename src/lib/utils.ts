@@ -21,21 +21,25 @@ export function generateTextImage(
   if (typeof window === "undefined") return { dataUrl: "", aspectRatio: 1 };
   
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d", { alpha: true })!;
   
   // Set up font styling string
   const boldStyle = isBold ? "bold" : "";
   const italicStyle = isItalic ? "italic" : "";
   
   // Map font families to standard CSS names directly (Canvas cannot parse CSS variables like var(--font-sans))
-  let fontName = "'Poppins', sans-serif";
-  if (fontFamily === "JetBrains Mono") {
-    fontName = "'JetBrains Mono', monospace";
-  } else if (fontFamily === "Inter") {
-    fontName = "'Inter', sans-serif";
-  } else {
-    fontName = "'Poppins', sans-serif";
-  }
+  const fontFamilyMap: Record<string, string> = {
+    "Poppins": "'Poppins', sans-serif",
+    "Inter": "'Inter', sans-serif",
+    "JetBrains Mono": "'JetBrains Mono', monospace",
+    "Georgia": "Georgia, serif",
+    "Times New Roman": "'Times New Roman', serif",
+    "Courier New": "'Courier New', monospace",
+    "Arial": "Arial, sans-serif",
+    "Verdana": "Verdana, sans-serif",
+    "Trebuchet MS": "'Trebuchet MS', sans-serif",
+  };
+  const fontName = fontFamilyMap[fontFamily] ?? `'${fontFamily}', sans-serif`;
   
   // Use a scale multiplier for high-DPI/crisp canvas rendering
   const scale = 3;
@@ -44,10 +48,10 @@ export function generateTextImage(
   ctx.font = `${italicStyle} ${boldStyle} ${renderSize}px ${fontName}`.trim();
   const metrics = ctx.measureText(text);
 
-  // Add padding around text to prevent clipping, scaled by the scale multiplier
-  const paddingX = size * 1.5 * scale;
-  const paddingY = size * 0.8 * scale;
-  const width = Math.max(80 * scale, metrics.width + paddingX);
+  // Minimal padding — just enough to avoid glyph clipping at edges
+  const paddingX = size * 0.2 * scale;
+  const paddingY = size * 0.15 * scale;
+  const width = Math.max(20 * scale, metrics.width + paddingX);
   const height = renderSize + paddingY;
   
   canvas.width = width;
