@@ -229,7 +229,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
                   {savedSignatures.map((sig) => (
                     <div
                       key={sig.id}
-                      className={`relative group/sig flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer transition-all bg-surface ${
+                      className={`relative group/sig flex items-center justify-between gap-2 p-2 rounded-lg border cursor-pointer transition-all bg-surface ${
                         selectedSignatureUrl === sig.dataUrl && selectedSignatureType === "signature" && isPlacingMode
                           ? "border-primary bg-primary/5"
                           : "border-outline-variant hover:border-primary/45"
@@ -243,20 +243,26 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
                       <img
                         src={sig.dataUrl}
                         alt={sig.name || "Tanda Tangan"}
-                        className="h-8 w-auto max-w-[140px] object-contain"
+                        className="h-8 w-auto max-w-[120px] object-contain shrink-0"
                       />
-                      {selectedSignatureUrl === sig.dataUrl && selectedSignatureType === "signature" && isPlacingMode && (
-                        <span className="ml-auto text-[9px] font-bold text-primary shrink-0">Aktif</span>
-                      )}
-                      <button
-                        className="absolute top-1 right-1 opacity-0 group-hover/sig:opacity-100 w-4 h-4 rounded-full bg-destructive/10 hover:bg-destructive text-destructive hover:text-white flex items-center justify-center transition-all"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeSavedSignature(sig.id);
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-[11px]">close</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {selectedSignatureUrl === sig.dataUrl && selectedSignatureType === "signature" && isPlacingMode && (
+                          <span className="text-[9px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                            Aktif
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          title="Hapus tanda tangan"
+                          className="p-1 rounded-md text-outline hover:bg-red-50 hover:text-red-600 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeSavedSignature(sig.id);
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

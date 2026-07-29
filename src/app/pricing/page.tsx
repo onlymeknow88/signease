@@ -4,6 +4,7 @@ import { useESignStore } from "@/lib/store";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -47,7 +48,7 @@ export default function PricingPage() {
     setCheckoutStep("loading");
     setCheckoutError(null);
     try {
-      const res = await fetch("/api/subscription/upgrade", {
+      const res = await apiFetch("/api/subscription/upgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

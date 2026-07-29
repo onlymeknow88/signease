@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 export default function AccountPage() {
   const { user, billingHistory, setPlan, addBillingRecord, setBillingHistory, loadCertificates } = useESignStore();
@@ -97,7 +98,7 @@ export default function AccountPage() {
     if (!confirm("Apakah Anda yakin ingin membatalkan langganan Pro? Semua fitur Pro akan dikunci kembali.")) return;
     setIsCancelling(true);
     try {
-      const res = await fetch("/api/subscription/cancel", {
+      const res = await apiFetch("/api/subscription/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user?.email || "guest@example.com" }),

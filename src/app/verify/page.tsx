@@ -27,9 +27,57 @@ function formatDate(iso: string) {
     day: "numeric",
     month: "long",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
+}
+
+function formatSigningTime(timeStr: string | null) {
+  if (!timeStr) return "-";
+  try {
+    const clean = timeStr.trim();
+    if (clean.length >= 13 && clean.endsWith("Z") && !clean.includes("-") && !clean.includes("T")) {
+      let year: number, month: number, day: number, hour: number, min: number, sec: number;
+      if (clean.length === 13) {
+        year = 2000 + parseInt(clean.substring(0, 2));
+        month = parseInt(clean.substring(2, 4)) - 1;
+        day = parseInt(clean.substring(4, 6));
+        hour = parseInt(clean.substring(6, 8));
+        min = parseInt(clean.substring(8, 10));
+        sec = parseInt(clean.substring(10, 12));
+      } else {
+        year = parseInt(clean.substring(0, 4));
+        month = parseInt(clean.substring(4, 6)) - 1;
+        day = parseInt(clean.substring(6, 8));
+        hour = parseInt(clean.substring(8, 10));
+        min = parseInt(clean.substring(10, 12));
+        sec = parseInt(clean.substring(12, 14));
+      }
+      const d = new Date(Date.UTC(year, month, day, hour, min, sec));
+      return (
+        d.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }) + " WIB"
+      );
+    }
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) {
+      return (
+        d.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }) + " WIB"
+      );
+    }
+  } catch {
+    // fallback
+  }
+  return timeStr;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -300,11 +348,18 @@ export default function VerifyPage() {
 
             {/* TTE disclaimer */}
             {result.hasDigitalSignature && result.signers.some((s) => s.isSelfSigned) && (
-              <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-[11px] text-amber-700 leading-relaxed">
-                  <p className="font-semibold mb-0.5">TTE Tidak Tersertifikasi (PP 71/2019)</p>
-                  Sertifikat ini berjenis <strong>self-signed</strong> dan tidak berinduk ke PSrE Induk Komdigi. Tanda tangan ini tidak memiliki kekuatan hukum setara TTE Tersertifikasi dari PSrE terakreditasi (Privy, VIDA, BSrE, dll).
+              <div className="flex gap-2.5 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-blue-700 leading-relaxed space-y-1">
+                  <p className="font-semibold">Tanda Tangan Digital Sah Secara Hukum (ISO/IEC 9594 · UU ITE)</p>
+                  <p>
+                    Dokumen ini ditandatangani menggunakan sertifikat <strong>PKCS#12 / X.509 self-signed</strong> berstandar internasional.
+                    Berdasarkan <strong>UU ITE No. 11/2008</strong>, tanda tangan digital berbasis sertifikat elektronik <strong>tetap memiliki kekuatan hukum</strong> dan dapat digunakan untuk kontrak bisnis, dokumen internal, serta keperluan komersial.
+                    Integritas dokumen dapat diverifikasi di Adobe Acrobat Reader.
+                  </p>
+                  <p className="text-blue-500/80">
+                    Catatan: Sertifikat ini tidak berinduk ke PSrE Induk Komdigi, sehingga <strong>tidak berlaku</strong> untuk dokumen yang secara khusus mensyaratkan TTE Tersertifikasi (seperti e-Faktur, dokumen ASN, atau layanan pemerintah). Untuk kebutuhan tersebut, gunakan PSrE terakreditasi: Privy, VIDA, atau BSrE.
+                  </p>
                 </div>
               </div>
             )}
@@ -372,20 +427,21 @@ export default function VerifyPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
                       <InfoRow label="Organisasi" value={signer.organization} />
                       <InfoRow label="Email" value={signer.email} />
-                      <InfoRow label="Algoritma" value={signer.algorithm} />
                       <InfoRow
-                        label="Serial Number"
-                        value={signer.serialNumber.substring(0, 24) + (signer.serialNumber.length > 24 ? "…" : "")}
+                        label="Masa Berlaku Sertifikat"
+                        value={`${formatDate(signer.validFrom)} s/d ${formatDate(signer.validTo)}`}
+                        fullWidth
                       />
-                      <InfoRow label="Berlaku dari" value={formatDate(signer.validFrom)} />
-                      <InfoRow label="Berlaku s/d" value={formatDate(signer.validTo)} />
                       {signer.signingTime && (
-                        <InfoRow label="Waktu Tanda Tangan" value={signer.signingTime} fullWidth />
+                        <InfoRow
+                          label="Waktu Ditandatangani"
+                          value={formatSigningTime(signer.signingTime)}
+                          fullWidth
+                        />
                       )}
-                      <InfoRow label="Penerbit (Issuer)" value={signer.issuer} fullWidth />
                     </div>
                   </div>
                 ))}

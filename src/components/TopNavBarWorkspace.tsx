@@ -9,7 +9,6 @@ import {
   FileText,
   Loader2,
   Redo2,
-  Share2,
   ShieldCheck,
   Undo2,
   ZoomIn,
@@ -19,6 +18,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useESignStore } from "@/lib/store";
+import { DigitalCertificate } from "@/lib/types";
+import { SigningPasswordDialog } from "@/components/SigningPasswordDialog";
 
 export function TopNavBarWorkspace() {
   const {
@@ -30,6 +31,7 @@ export function TopNavBarWorkspace() {
     undo,
     redo,
     downloadSignedPdf,
+    setPendingCert,
     annotations,
     pdfHash,
     signedAt,
@@ -39,7 +41,6 @@ export function TopNavBarWorkspace() {
   const [zoomInput, setZoomInput] = useState(`${Math.round(pdfScale * 100)}`);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,8 +74,6 @@ export function TopNavBarWorkspace() {
   const handleDownloadPdf = async () => {
     if (!pdfFile || isDownloading) return;
     setDownloadOpen(false);
-    // pendingCertPassword is already set in store from SignaturePad cert step
-    // downloadSignedPdf reads it internally — no dialog needed here
     setIsDownloading(true);
     try {
       await downloadSignedPdf();
@@ -196,15 +195,6 @@ export function TopNavBarWorkspace() {
           <span className="hidden sm:block">Verifikasi PDF</span>
         </Link> */}
 
-        {/* Bagikan — aktif, buka modal */}
-        <button
-          onClick={() => setShareModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-outline-variant text-on-surface-variant rounded-lg hover:border-primary hover:text-primary transition-colors"
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          <span className="hidden sm:block">Bagikan</span>
-        </button>
-
         {/* Unduh — dropdown */}
         <div className="relative" ref={dropRef}>
           <button
@@ -244,35 +234,6 @@ export function TopNavBarWorkspace() {
           )}
         </div>
       </div>
-
-      {/* Bagikan — Modal Coming Soon */}
-      {shareModalOpen && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fade-in"
-          onClick={() => setShareModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-slide-in-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Share2 className="w-6 h-6 text-primary" />
-            </div>
-            <h3 className="font-bold text-sm text-on-surface text-center mb-2">
-              Fitur Berbagi (Segera Hadir)
-            </h3>
-            <p className="text-xs text-on-surface-variant leading-relaxed text-center">
-              Fitur berbagi dokumen untuk penandatanganan multi-pihak akan tersedia di pembaruan mendatang.
-            </p>
-            <button
-              onClick={() => setShareModalOpen(false)}
-              className="mt-5 w-full py-2.5 rounded-xl bg-primary text-on-primary text-xs font-bold hover:brightness-110 transition-all"
-            >
-              Oke, Mengerti
-            </button>
-          </div>
-        </div>
-      )}
 
     </header>
   );

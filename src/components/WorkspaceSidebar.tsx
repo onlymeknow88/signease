@@ -146,18 +146,7 @@ export function WorkspaceSidebar() {
         })}
       </nav>
 
-      {/* Storage indicator */}
-      {!sidebarCollapsed && (
-        <div className="px-3 py-3 border-t border-outline-variant/40">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] font-semibold text-on-surface-variant">Penyimpanan</p>
-            <p className="text-[10px] text-outline">2.4 GB / 10 GB</p>
-          </div>
-          <div className="w-full h-1.5 bg-outline-variant/30 rounded-full overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all" style={{ width: "24%" }} />
-          </div>
-        </div>
-      )}
+
 
       {/* Upgrade card */}
       {!sidebarCollapsed && user.plan === "free" && <UpgradeCard />}

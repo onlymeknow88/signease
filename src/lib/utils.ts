@@ -89,3 +89,79 @@ export function generateTextImage(
     aspectRatio: height / width,
   };
 }
+
+/**
+ * Converts an image URL to a data URL (base64).
+ * Used for loading logo from public folder.
+ */
+export function imageToDataUrl(imagePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } else {
+        reject(new Error("Failed to get canvas context"));
+      }
+    };
+    img.onerror = () => reject(new Error(`Failed to load image: ${imagePath}`));
+    img.src = imagePath;
+  });
+}
+
+/**
+ * Adds a logo watermark overlay to an existing signature image.
+ * Logo is centered over the signature with semi-transparency.
+ * logoSize = fraction of canvas height (default 0.55 = 55% of height)
+ * opacity  = 0..1 (default 0.18 = subtle overlay)
+ */
+export function addLogoWatermark(
+  signatureDataUrl: string,
+  logoDataUrl: string,
+  logoSize: number = 0.55,
+  opacity: number = 0.18
+): Promise<string> {
+  return new Promise((resolve) => {
+    const sigImg = new Image();
+    const logoImg = new Image();
+
+    sigImg.src = signatureDataUrl;
+    logoImg.src = logoDataUrl;
+
+    Promise.all([
+      new Promise((r) => { sigImg.onload = r; }),
+      new Promise((r) => { logoImg.onload = r; })
+    ]).then(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = sigImg.width;
+      canvas.height = sigImg.height;
+      const ctx = canvas.getContext("2d")!;
+
+      // Draw original signature
+      ctx.drawImage(sigImg, 0, 0);
+
+      // Scale logo so its height = logoSize * canvas.height
+      const targetH = canvas.height * logoSize;
+      const logoAspect = logoImg.width / logoImg.height;
+      const logoH = targetH;
+      const logoW = targetH * logoAspect;
+
+      // Center logo over the signature
+      const logoX = (canvas.width - logoW) / 2;
+      const logoY = (canvas.height - logoH) / 2;
+
+      // Draw logo as centered overlay with transparency
+      ctx.globalAlpha = opacity;
+      ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+      ctx.globalAlpha = 1.0;
+
+      resolve(canvas.toDataURL("image/png"));
+    });
+  });
+}

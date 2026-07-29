@@ -56,8 +56,10 @@ model Certificate {
   validFrom       DateTime
   validTo         DateTime
   isValid         Boolean  @default(true)
-  isSelfSigned    Boolean  @default(false)
-  localStorageKey String   @db.VarChar(100)
+  isSelfSigned         Boolean  @default(false)
+  organization         String?  @db.VarChar(255)
+  organizationalUnit   String?  @db.VarChar(255)
+  localStorageKey      String   @db.VarChar(100)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

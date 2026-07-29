@@ -1,19 +1,21 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
-import SignatureCanvas from "react-signature-canvas";
+import { Check, ChevronLeft, Eraser, Pen, Plus, ShieldCheck, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Eraser, Pen, Upload, Check, ShieldCheck, ChevronLeft } from "lucide-react";
-import { useESignStore } from "@/lib/store";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { CertificateGeneratorModal } from "@/components/CertificateGeneratorModal";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import SignatureCanvas from "react-signature-canvas";
+import { useESignStore } from "@/lib/store";
 
 interface SignaturePadProps {
   onClose: () => void;
@@ -23,16 +25,32 @@ const TYPED_FONTS = [
   { label: "Cursive", family: "'Dancing Script', cursive" },
   { label: "Signature", family: "'Pacifico', cursive" },
   { label: "Elegant", family: "'Great Vibes', cursive" },
+  { label: "Times New Roman", family: "'Times New Roman', Times, serif" },
+  { label: "Arial", family: "Arial, Helvetica, sans-serif" },
+  { label: "Georgia", family: "Georgia, serif" },
+  { label: "Courier New", family: "'Courier New', Courier, monospace" },
 ];
 
-// Load Google Fonts for typed signatures
+// Load Google Fonts for typed signatures (system fonts don't need import)
 const FONT_IMPORT =
   "https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Pacifico&family=Great+Vibes&display=swap";
 
 export function SignaturePad({ onClose }: SignaturePadProps) {
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addSavedSignature, setPlacingMode, setPendingCert, certificates, validateCertificatePassword, user } = useESignStore();
+  const {
+    addSavedSignature,
+    setPlacingMode,
+    setPendingCert,
+    certificates,
+    loadCertificates,
+    validateCertificatePassword,
+    user,
+    logoWatermarkEnabled,
+    logoDataUrl,
+    setLogoWatermarkEnabled,
+    loadLogo,
+  } = useESignStore();
 
   const [typedName, setTypedName] = useState("");
   const [selectedFont, setSelectedFont] = useState(TYPED_FONTS[0]);
@@ -51,9 +69,27 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
   const [selectedCertId, setSelectedCertId] = useState<number | null>(null);
   const [certPassword, setCertPassword] = useState("");
   const [certPasswordError, setCertPasswordError] = useState("");
+  const [showCertGenerator, setShowCertGenerator] = useState(false);
+
+  // Always sync & load certificates on mount
+  useEffect(() => {
+    loadCertificates();
+  }, [loadCertificates]);
+
+  // Load logo for watermark on mount
+  useEffect(() => {
+    if (!logoDataUrl) {
+      loadLogo();
+    }
+  }, [logoDataUrl, loadLogo]);
+
+  const activeCertificates = certificates.filter((c) => {
+    const t = c.validTo instanceof Date ? c.validTo.getTime() : new Date(c.validTo).getTime();
+    return !isNaN(t) && t > Date.now();
+  });
 
   // Helper to generate combined Adobe-style signature card
-  const generateAdobeStyleSignature = useCallback((sigDataUrl: string): Promise<string> => {
+  const generateAdobeStyleSignature = useCallback((sigDataUrl: string, certId?: number | null): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = sigDataUrl;
@@ -87,45 +123,111 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
         const drawY = boxY + (boxH - drawH) / 2;
         ctx.drawImage(img, drawX, drawY, drawW, drawH);
 
-        // Draw texts on the right
-        const textX = 290;
-        ctx.fillStyle = "#1a1a2e";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
+        const drawTextAndFinish = () => {
+          // Draw texts on the right
+          const textX = 290;
+          ctx.fillStyle = "#1a1a2e";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
 
-        // Line 1: Digitally signed
-        ctx.font = "bold 26px sans-serif";
-        ctx.fillText("Digitally signed", textX, 25);
+          // Lookup selected cert for organization/unit metadata
+          const selectedCert = certId != null
+            ? useESignStore.getState().certificates.find((c) => c.id === certId)
+            : null;
+          const orgName = selectedCert?.organization || null;
+          const unitName = selectedCert?.organizationalUnit || null;
 
-        // Line 2: by [Name]
-        ctx.font = "bold 26px sans-serif";
-        ctx.fillText(`by ${signerName || "User"}`, textX, 60);
+          // Compute vertical layout dynamically based on available metadata lines
+          const lines: { text: string; bold: boolean; size: number }[] = [
+            { text: "Digitally signed", bold: true, size: 24 },
+            { text: `by ${signerName || "User"}`, bold: true, size: 24 },
+          ];
+          if (orgName) lines.push({ text: orgName, bold: false, size: 19 });
+          if (unitName) lines.push({ text: unitName, bold: false, size: 19 });
 
-        // Date generation
-        const now = new Date();
-        const pad = (num: number) => String(num).padStart(2, '0');
-        const year = now.getFullYear();
-        const month = pad(now.getMonth() + 1);
-        const day = pad(now.getDate());
-        const hours = pad(now.getHours());
-        const minutes = pad(now.getMinutes());
-        const seconds = pad(now.getSeconds());
+          // Date lines
+          const now = new Date();
+          const pad = (num: number) => String(num).padStart(2, '0');
+          const year = now.getFullYear();
+          const month = pad(now.getMonth() + 1);
+          const day = pad(now.getDate());
+          const hours = pad(now.getHours());
+          const minutes = pad(now.getMinutes());
+          const seconds = pad(now.getSeconds());
+          const offsetMinutes = now.getTimezoneOffset();
+          const offsetSign = offsetMinutes <= 0 ? '+' : '-';
+          const absOffsetMinutes = Math.abs(offsetMinutes);
+          const offsetHours = pad(Math.floor(absOffsetMinutes / 60));
+          const offsetMins = pad(absOffsetMinutes % 60);
+          const timezoneStr = `${offsetSign}${offsetHours}'${offsetMins}'`;
+          lines.push({ text: `Date: ${year}.${month}.${day}`, bold: false, size: 19 });
+          lines.push({ text: `${hours}:${minutes}:${seconds} ${timezoneStr}`, bold: false, size: 19 });
 
-        const offsetMinutes = now.getTimezoneOffset();
-        const offsetSign = offsetMinutes <= 0 ? '+' : '-';
-        const absOffsetMinutes = Math.abs(offsetMinutes);
-        const offsetHours = pad(Math.floor(absOffsetMinutes / 60));
-        const offsetMins = pad(absOffsetMinutes % 60);
-        const timezoneStr = `${offsetSign}${offsetHours}'${offsetMins}'`;
+          // Distribute lines evenly across available vertical space
+          const availH = canvas.height - 20; // 10px top/bottom padding
+          const lineH = availH / lines.length;
+          lines.forEach((line, i) => {
+            ctx.font = `${line.bold ? "bold " : ""}${line.size}px sans-serif`;
+            ctx.fillText(line.text, textX, 10 + i * lineH + (lineH - line.size) / 2);
+          });
 
-        // Line 3: Date: YYYY.MM.DD
-        ctx.font = "22px sans-serif";
-        ctx.fillText(`Date: ${year}.${month}.${day}`, textX, 105);
+          resolve(canvas.toDataURL("image/png"));
+        };
 
-        // Line 4: HH:MM:SS Offset
-        ctx.fillText(`${hours}:${minutes}:${seconds} ${timezoneStr}`, textX, 140);
+        // Load logo via fetch → blob URL to avoid canvas CORS taint issues
+        // Logo is drawn as a centered background watermark BEHIND the signature
+        fetch("/logo.png")
+          .then((r) => r.blob())
+          .then((blob) => {
+            const blobUrl = URL.createObjectURL(blob);
+            const logo = new Image();
+            logo.onload = () => {
+              // Scale logo to overflow canvas slightly for a bold watermark look
+              // Use canvas height as the constraint, scale width proportionally
+              const aspect = logo.width / logo.height;
+              const logoH = canvas.height * 1.1; // slightly taller than canvas
+              const logoW = logoH * aspect;
 
-        resolve(canvas.toDataURL("image/png"));
+              // Center over the entire canvas (not just left box)
+              const logoX = (canvas.width - logoW) / 2;
+              const logoY = (canvas.height - logoH) / 2;
+
+              // Re-draw: clear → separator → logo watermark → signature on top
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+              // Clip to canvas bounds so overflow doesn't bleed outside
+              ctx.save();
+              ctx.rect(0, 0, canvas.width, canvas.height);
+              ctx.clip();
+
+              // Redraw separator line
+              ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.moveTo(270, 20);
+              ctx.lineTo(270, 180);
+              ctx.stroke();
+
+              // Draw logo as large centered watermark behind signature
+              ctx.globalAlpha = 0.25;
+              ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+              ctx.globalAlpha = 1.0;
+
+              ctx.restore();
+
+              // Draw signature on top of watermark
+              ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+              URL.revokeObjectURL(blobUrl);
+              drawTextAndFinish();
+            };
+            logo.onerror = () => {
+              URL.revokeObjectURL(blobUrl);
+              drawTextAndFinish();
+            };
+            logo.src = blobUrl;
+          })
+          .catch(() => drawTextAndFinish());
       };
     });
   }, [signerName]);
@@ -170,8 +272,15 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
 
     if (dataUrl) {
       if (useAdobeStyle) {
-        dataUrl = await generateAdobeStyleSignature(dataUrl);
+        dataUrl = await generateAdobeStyleSignature(dataUrl, selectedCertId);
       }
+
+      // Add logo watermark if enabled
+      if (logoWatermarkEnabled && logoDataUrl) {
+        const { addLogoWatermark } = await import("@/lib/utils");
+        dataUrl = await addLogoWatermark(dataUrl, logoDataUrl);
+      }
+
       // Go to step 2 — cert selector
       setPendingDataUrl(dataUrl);
       setStep("cert");
@@ -212,6 +321,16 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
         <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden rounded-2xl border border-border/60 shadow-2xl">
           <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="SignEase"
+                className="w-6 h-6 rounded-md object-contain"
+                onError={(e) => {
+                  // Hide gracefully if logo.png isn't available, fall back to the pen icon only
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
               <Pen className="w-5 h-5 text-primary" />
               Buat Tanda Tangan
             </DialogTitle>
@@ -404,6 +523,22 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
               </label>
             </div>
 
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-foreground flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={logoWatermarkEnabled}
+                  onChange={(e) => setLogoWatermarkEnabled(e.target.checked)}
+                  disabled={!logoDataUrl}
+                  className="rounded border-border text-primary focus:ring-primary/40 w-4 h-4 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                Tambahkan logo watermark
+                {!logoDataUrl && (
+                  <span className="text-xs text-muted-foreground">(memuat...)</span>
+                )}
+              </label>
+            </div>
+
             {useAdobeStyle && (
               <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
                 <label className="text-xs font-semibold text-muted-foreground">
@@ -444,17 +579,28 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
       {/* Step 2 — Certificate selector dialog */}
       {step === "cert" && (
         <Dialog open={true} onOpenChange={() => setStep("draw")}>
-          <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden rounded-2xl border border-border/60 shadow-2xl">
+          <DialogContent className="sm:max-w-[460px] p-0 overflow-hidden rounded-2xl border border-border/60 shadow-2xl">
             <DialogHeader className="px-6 pt-6 pb-0">
-              <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-                Pilih Sertifikat Digital (Opsional)
+              <DialogTitle className="text-base font-semibold flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/logo.png"
+                    alt="SignEase"
+                    className="w-5 h-5 rounded-md object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  Pilih Sertifikat Digital (Kriptografi)
+                </div>
               </DialogTitle>
             </DialogHeader>
 
             <div className="px-6 py-4 space-y-3">
               <p className="text-[11px] text-outline leading-relaxed">
-                Pilih sertifikat untuk menandatangani dokumen secara digital saat diunduh. Bisa dilewati jika hanya butuh tanda tangan visual.
+                Pilih sertifikat untuk mengunci dan mengamankan integritas dokumen PDF secara digital.
               </p>
 
               {/* None option */}
@@ -466,11 +612,11 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
                   onChange={() => { setSelectedCertId(null); setCertPassword(""); setCertPasswordError(""); }}
                   className="accent-primary"
                 />
-                <span className="text-sm text-outline">Tanpa sertifikat (tanda tangan visual saja)</span>
+                <span className="text-xs text-outline">Tanpa sertifikat (tanda tangan visual saja)</span>
               </label>
 
               {/* Certificate options */}
-              {certificates.filter((c) => new Date(c.validTo) > new Date()).map((cert) => (
+              {activeCertificates.map((cert) => (
                 <label
                   key={cert.id}
                   className={`flex items-start gap-2 cursor-pointer p-2.5 rounded-lg border transition-colors ${
@@ -485,29 +631,53 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
                     className="mt-0.5 accent-primary"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{cert.name}</p>
+                    <p className="text-xs font-bold text-foreground">{cert.name}</p>
                     <p className="text-[10px] text-outline">CN: {cert.commonName}</p>
                   </div>
                 </label>
               ))}
 
-              {certificates.filter((c) => new Date(c.validTo) > new Date()).length === 0 && (
-                <p className="text-[11px] text-outline text-center py-2">
-                  Belum ada sertifikat aktif. Buat dulu di tab Sertifikat.
-                </p>
+              {activeCertificates.length === 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center space-y-2">
+                  <p className="text-[11px] font-semibold text-amber-800">
+                    Belum ada sertifikat digital aktif
+                  </p>
+                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                    Buat sertifikat self-signed sekarang agar dokumen Anda terkunci kriptografi valid.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => setShowCertGenerator(true)}
+                    className="w-full text-xs font-bold py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    + Buat Sertifikat Self-Signed Baru
+                  </Button>
+                </div>
+              )}
+
+              {activeCertificates.length > 0 && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowCertGenerator(true)}
+                    className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Buat Sertifikat Baru
+                  </button>
+                </div>
               )}
 
               {/* Password input when cert selected */}
               {selectedCertId !== null && (
                 <div className="space-y-1 pt-1">
-                  <label className="text-[11px] font-medium text-foreground">Password Sertifikat *</label>
-                   <Input
+                  <label className="text-[11px] font-medium text-foreground">Password Sertifikat .p12 *</label>
+                  <Input
                     type="password"
                     placeholder="Masukkan password .p12"
                     value={certPassword}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setCertPassword(e.target.value); setCertPasswordError(""); }}
                     className="w-full mt-1.5"
-                    autoFocus
                   />
                   {certPasswordError && <p className="text-[10px] text-red-500">{certPasswordError}</p>}
                 </div>
@@ -520,33 +690,30 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
               <Button
                 variant="outline"
                 onClick={() => setStep("draw")}
-                className="rounded-xl gap-1.5"
+                className="rounded-xl gap-1.5 text-xs"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Kembali
               </Button>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    setSelectedCertId(null);
-                    await handleConfirmCert();
-                  }}
-                  className="rounded-xl text-xs"
-                >
-                  Lewati
-                </Button>
-                <Button
-                  onClick={handleConfirmCert}
-                  className="rounded-xl gap-2 glow-primary"
-                >
-                  <Check className="w-4 h-4" />
-                  Konfirmasi
-                </Button>
-              </div>
+              <Button
+                onClick={handleConfirmCert}
+                className="rounded-xl gap-2 text-xs font-bold glow-primary"
+              >
+                <Check className="w-4 h-4" />
+                Terapkan Ke Dokumen
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {showCertGenerator && (
+        <CertificateGeneratorModal
+          onClose={() => {
+            setShowCertGenerator(false);
+            loadCertificates();
+          }}
+        />
       )}
     </>
   );

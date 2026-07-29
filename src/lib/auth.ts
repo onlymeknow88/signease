@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import bcrypt from "bcrypt";
 import crypto from "crypto";
 import prisma from "@/lib/db";
 
@@ -29,12 +30,30 @@ export const authOptions: NextAuthOptions = {
 
           if (!user || !user.password) return null;
 
-          const hashedPassword = crypto
-            .createHash("sha256")
-            .update(credentials.password)
-            .digest("hex");
+          // Hybrid verification: support both bcrypt and legacy SHA-256
+          // bcrypt hashes start with $2b$ or $2a$
+          let isValid = false;
+          if (user.password.startsWith("$2b$") || user.password.startsWith("$2a$")) {
+            // bcrypt hash — use bcrypt.compare
+            isValid = await bcrypt.compare(credentials.password, user.password);
+          } else {
+            // Legacy SHA-256 hash — verify then auto-migrate to bcrypt
+            const sha256Hash = crypto
+              .createHash("sha256")
+              .update(credentials.password)
+              .digest("hex");
+            isValid = user.password === sha256Hash;
+            if (isValid) {
+              // Auto-migrate to bcrypt on next successful login
+              const bcryptHash = await bcrypt.hash(credentials.password, 12);
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { password: bcryptHash },
+              });
+            }
+          }
 
-          if (user.password !== hashedPassword) return null;
+          if (!isValid) return null;
 
           if (!user.emailVerified) {
             throw new Error("unverified");
@@ -58,6 +77,22 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "database",
+    maxAge: 24 * 60 * 60, // 1x24 jam = 86400 detik
+    updateAge: 60 * 60,   // Refresh session setiap 1 jam jika aktif
+  },
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   callbacks: {
     async session({ session, user }) {
@@ -84,5 +119,5 @@ export const authOptions: NextAuthOptions = {
     signOut: "/",
     error: "/login",
   },
-  secret: process.env.NEXTAUTH_SECRET || "SIGN_EASE_FALLBACK_SECRET_FOR_DEV_PURPOSES",
+  secret: process.env.NEXTAUTH_SECRET,
 };

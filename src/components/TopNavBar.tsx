@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   FileText,
   CreditCard,
-  UserCircle,
   Bell,
   Settings,
   LogOut,
@@ -54,7 +53,6 @@ export function TopNavBar() {
     { label: "Workspace",  href: "/app",     icon: FileText        },
     { label: "Verifikasi", href: "/verify",  icon: ShieldCheck     },
     { label: "Harga",      href: "/pricing", icon: CreditCard      },
-    { label: "Akun",       href: "/account", icon: UserCircle      },
   ];
 
   const initials = user.name

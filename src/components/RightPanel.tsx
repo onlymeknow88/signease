@@ -1,10 +1,11 @@
 "use client";
 
-import { useESignStore } from "@/lib/store";
-import { Trash2, PenLine, ChevronDown, Plus } from "lucide-react";
-import { useState, useEffect } from "react";
-import { generateTextImage } from "@/lib/utils";
+import { ChevronDown, PenLine, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
 import { CertificateManager } from "./CertificateManager";
+import { generateTextImage } from "@/lib/utils";
+import { useESignStore } from "@/lib/store";
 
 export function RightPanel() {
   const {
@@ -261,6 +262,10 @@ export function RightPanel() {
                       >
                         <option value="Poppins">Poppins</option>
                         <option value="Inter">Inter</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Courier New">Courier New</option>
                         <option value="JetBrains Mono">JetBrains Mono</option>
                       </select>
                     </div>
@@ -581,7 +586,7 @@ export function RightPanel() {
                     <span className="material-symbols-outlined text-[24px]">verified_user</span>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-emerald-800">Dokumen Terverifikasi</p>
+                    <p className="text-xs font-bold text-emerald-800">SecurityBadgeverifikasi</p>
                     <p className="text-[10px] text-emerald-600/90 font-medium">
                       {certificateUsedId !== null ? "TTE Tidak Tersertifikasi (ByteRange / Adobe)" : "Integritas Terjamin (Lokal)"}
                     </p>
@@ -602,9 +607,10 @@ export function RightPanel() {
                         <p className="text-blue-500/80">CN: {usedCert.commonName}</p>
                       </div>
                       {/* TTE status disclaimer */}
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[10px] text-amber-700 leading-relaxed">
-                        <p className="font-semibold mb-0.5">⚠️ TTE Tidak Tersertifikasi (PP 71/2019)</p>
-                        Sertifikat ini <strong>tidak berinduk ke PSrE Induk Komdigi</strong>. Dapat dibaca di Adobe Acrobat, namun tidak berlaku untuk dokumen resmi pemerintah. Untuk keperluan hukum formal, gunakan layanan PSrE terakreditasi (Privy, VIDA, BSrE).
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-[10px] text-blue-700 leading-relaxed space-y-1">
+                        <p className="font-semibold">Sah Secara Hukum (ISO/IEC 9594 · UU ITE)</p>
+                        <p>Tanda tangan ini menggunakan sertifikat <strong>PKCS#12 / X.509</strong> berstandar internasional dan dapat diverifikasi di Adobe Acrobat. Berlaku untuk kontrak bisnis, dokumen internal, dan keperluan komersial sesuai <strong>UU ITE No. 11/2008</strong>.</p>
+                        <p className="text-blue-500/80">Tidak berlaku untuk dokumen yang mensyaratkan TTE Tersertifikasi Komdigi (e-Faktur, dokumen ASN, dll). Untuk itu gunakan PSrE terakreditasi: Privy, VIDA, atau BSrE.</p>
                       </div>
                     </div>
                   ) : null;

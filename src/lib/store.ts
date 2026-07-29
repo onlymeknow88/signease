@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { apiFetch } from "@/lib/api";
 import { SignatureAnnotation, DigitalCertificate } from "./types";
 import { nanoid } from "nanoid";
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
@@ -10,6 +11,8 @@ import {
   loadP12FromLocalStorage,
   removeP12FromLocalStorage,
   validateP12Password,
+  saveP12PasswordToLocalStorage,
+  loadP12PasswordFromLocalStorage,
 } from "./crypto";
 
 export interface BillingRecord {
@@ -195,13 +198,49 @@ interface ESignStore {
 
   // Certificate actions
   loadCertificates: () => Promise<void>;
-  addCertificate: (cert: DigitalCertificate, p12Base64: string) => void;
+  addCertificate: (cert: DigitalCertificate, p12Base64: string, password?: string) => void;
   removeCertificate: (id: number) => Promise<void>;
   selectCertificate: (id: number | null) => void;
   validateCertificatePassword: (id: number, password: string) => boolean;
 
   // Main signing execution — uses pendingCertPassword from store
   downloadSignedPdf: () => Promise<{ hash: string; bytes: Uint8Array } | null>;
+
+  // Logo watermark
+  logoWatermarkEnabled: boolean;
+  logoDataUrl: string | null;
+  setLogoWatermarkEnabled: (enabled: boolean) => void;
+  loadLogo: () => Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: pre-rotate a PNG data URL by angleDeg (clockwise) on a canvas.
+// Baking rotation into pixels avoids pdf-lib anchor-point rotation issues.
+// ---------------------------------------------------------------------------
+async function rotateImageDataUrl(dataUrl: string, angleDeg: number): Promise<string> {
+  const normalized = ((angleDeg % 360) + 360) % 360;
+  if (normalized === 0) return dataUrl;
+
+  const img = new Image();
+  img.src = dataUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Failed to load image for rotation"));
+  });
+
+  const swap = normalized === 90 || normalized === 270;
+  const canvas = document.createElement("canvas");
+  canvas.width = swap ? img.height : img.width;
+  canvas.height = swap ? img.width : img.height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get 2D context");
+
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((normalized * Math.PI) / 180);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+  return canvas.toDataURL("image/png");
 }
 
 export const useESignStore = create<ESignStore>((set, get) => ({
@@ -237,6 +276,10 @@ export const useESignStore = create<ESignStore>((set, get) => ({
   selectedCertificateId: null,
   isCertificateLoading: false,
   certificateUsedId: null,
+
+  // Logo watermark
+  logoWatermarkEnabled: false,
+  logoDataUrl: null,
 
   setPdfFile: (file) => set({ pdfFile: file }),
   setPdfBytes: (bytes) => set({ pdfBytes: bytes }),
@@ -282,7 +325,7 @@ export const useESignStore = create<ESignStore>((set, get) => ({
   loadSavedSignatures: async () => {
     set({ isSignatureLoading: true });
     try {
-      const res = await fetch("/api/signatures");
+      const res = await apiFetch("/api/signatures");
       if (!res.ok) return;
       const data: SavedSignatureRecord[] = await res.json();
       set({ savedSignatures: data });
@@ -295,7 +338,7 @@ export const useESignStore = create<ESignStore>((set, get) => ({
 
   addSavedSignature: async (dataUrl, name) => {
     try {
-      const res = await fetch("/api/signatures", {
+      const res = await apiFetch("/api/signatures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataUrl, name: name ?? null }),
@@ -475,7 +518,7 @@ export const useESignStore = create<ESignStore>((set, get) => ({
   loadCertificates: async () => {
     set({ isCertificateLoading: true });
     try {
-      const res = await fetch("/api/certificates");
+      const res = await apiFetch("/api/certificates");
       if (!res.ok) return;
       const data = await res.json();
       const certs: DigitalCertificate[] = data.map(
@@ -493,9 +536,17 @@ export const useESignStore = create<ESignStore>((set, get) => ({
     }
   },
 
-  addCertificate: (cert, p12Base64) => {
+  addCertificate: (cert, p12Base64, password) => {
     saveP12ToLocalStorage(cert.localStorageKey, p12Base64);
-    set((s) => ({ certificates: [cert, ...s.certificates] }));
+    if (password) {
+      saveP12PasswordToLocalStorage(cert.localStorageKey, password);
+    }
+    set((s) => ({
+      certificates: [cert, ...s.certificates],
+      selectedCertificateId: cert.id,
+      pendingCertId: cert.id,
+      pendingCertPassword: password ?? s.pendingCertPassword,
+    }));
   },
 
   removeCertificate: async (id) => {
@@ -524,7 +575,12 @@ export const useESignStore = create<ESignStore>((set, get) => ({
     if (!cert) return false;
     const p12 = loadP12FromLocalStorage(cert.localStorageKey);
     if (!p12) return false;
-    return validateP12Password(p12, password);
+    const valid = validateP12Password(p12, password);
+    if (valid) {
+      saveP12PasswordToLocalStorage(cert.localStorageKey, password);
+      set({ selectedCertificateId: id, pendingCertId: id, pendingCertPassword: password });
+    }
+    return valid;
   },
 
   downloadSignedPdf: async () => {
@@ -541,16 +597,66 @@ export const useESignStore = create<ESignStore>((set, get) => ({
       if (!page) continue;
 
       const { width: pW, height: pH } = page.getSize();
-      const base64 = ann.imageDataUrl.split(",")[1];
+      const rotation = page.getRotation().angle; // 0 | 90 | 180 | 270
+
+      // Pre-rotate image pixels by the counter-rotation so they appear upright
+      // on the rotated page. This avoids pdf-lib anchor-point rotation issues
+      // (rotating around a corner instead of the box center, which shifts the
+      // bounding box in a quadrant-dependent way).
+      const counterAngle = (360 - rotation) % 360;
+      const rotatedDataUrl = await rotateImageDataUrl(ann.imageDataUrl, counterAngle);
+
+      const base64 = rotatedDataUrl.split(",")[1];
       const imgBytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
       const img = await pdfDoc.embedPng(imgBytes);
 
-      const x = ann.xRatio * pW;
-      const h = ann.heightRatio * pH;
-      const y = pH - ann.yRatio * pH - h;
-      const w = ann.widthRatio * pW;
+      // Box geometry: maps the on-screen (rotated viewport) annotation box
+      // into pdf-lib's unrotated page coordinate space, using the same
+      // rotation matrix pdf.js applies internally (verified per-case, not
+      // ad-hoc). pdf-lib's drawImage x/y is the BOTTOM-LEFT corner, origin
+      // bottom-left, y-up.
+      //
+      // IMPORTANT for 90°/270°: width and height are SWAPPED relative to
+      // the ratios' natural pairing (widthRatio -> h, heightRatio -> w).
+      // This is because the pre-rotated bitmap's own pixel dimensions are
+      // swapped too (any 90°/270° rotation swaps W/H) — using widthRatio
+      // directly for the draw width squeezes the image into the wrong
+      // aspect ratio, which was causing the "lebar" (width) glitch.
+      let x: number, y: number, w: number, h: number;
 
-      page.drawImage(img, { x, y, width: w, height: h });
+      switch (rotation) {
+        case 90:
+          w = ann.heightRatio * pW;
+          h = ann.widthRatio * pH;
+          x = ann.yRatio * pW;
+          y = ann.xRatio * pH;
+          break;
+        case 180:
+          w = ann.widthRatio * pW;
+          h = ann.heightRatio * pH;
+          x = pW - ann.xRatio * pW - w;
+          y = ann.yRatio * pH;
+          break;
+        case 270:
+          w = ann.heightRatio * pW;
+          h = ann.widthRatio * pH;
+          x = pW - ann.yRatio * pW - w;
+          y = pH - ann.xRatio * pH - h;
+          break;
+        default: // rotation === 0
+          w = ann.widthRatio * pW;
+          h = ann.heightRatio * pH;
+          x = ann.xRatio * pW;
+          y = pH - ann.yRatio * pH - h;
+      }
+
+      page.drawImage(img, {
+        x,
+        y,
+        width: w,
+        height: h,
+        rotate: degrees(0),
+      });
     }
 
     // 2. Add Watermark if Free tier user
@@ -559,19 +665,15 @@ export const useESignStore = create<ESignStore>((set, get) => ({
       for (const page of pages) {
         const { width, height } = page.getSize();
 
-        // Diagonal Watermark text
         const watermarkText = "Signed with SignEase Free — signease.app";
         const fontSize = 26;
         const textWidth = helveticaFont.widthOfTextAtSize(watermarkText, fontSize);
         const textHeight = helveticaFont.heightAtSize(fontSize);
-
-        // Center coordinates
         const x = (width - textWidth) / 2;
         const y = (height - textHeight) / 2;
 
         page.drawText(watermarkText, {
-          x,
-          y: y + 50, // slightly offset up
+          x, y: y + 50,
           size: fontSize,
           font: helveticaFont,
           color: rgb(0.7, 0.7, 0.7),
@@ -579,16 +681,13 @@ export const useESignStore = create<ESignStore>((set, get) => ({
           rotate: degrees(30),
         });
 
-        // Bottom Footer Watermark
         const footerText = "Get watermark-free downloads at signease.app/pricing";
         const footerFontSize = 9;
         const footerWidth = helveticaFont.widthOfTextAtSize(footerText, footerFontSize);
-        const footerX = (width - footerWidth) / 2;
-        const footerY = 20;
 
         page.drawText(footerText, {
-          x: footerX,
-          y: footerY,
+          x: (width - footerWidth) / 2,
+          y: 20,
           size: footerFontSize,
           font: helveticaFont,
           color: rgb(0.5, 0.5, 0.5),
@@ -600,20 +699,26 @@ export const useESignStore = create<ESignStore>((set, get) => ({
     // 3. Save modified PDF bytes (visual annotations baked in)
     const annotatedBytes = await pdfDoc.save();
 
-    // 4. Optionally apply PKCS#7 digital signature using pendingCert from store
+    // 4. Optionally apply PKCS#7 digital signature
     let outputBytes: Uint8Array = annotatedBytes;
     let certUsedId: number | null = null;
 
-    // Use pendingCertId/pendingCertPassword (set during signature apply step)
-    // Fall back to selectedCertificateId if pending not set
-    const certId = pendingCertId ?? selectedCertificateId;
-    const certPassword = pendingCertPassword;
+    const activeCerts = certificates.filter((c) => {
+      const t = c.validTo instanceof Date ? c.validTo.getTime() : new Date(c.validTo).getTime();
+      return !isNaN(t) && t > Date.now();
+    });
 
-    if (certId !== null && certPassword) {
+    const certId = pendingCertId ?? selectedCertificateId ?? activeCerts[0]?.id ?? null;
+    let certPassword = pendingCertPassword;
+
+    if (certId !== null) {
       const cert = certificates.find((c) => c.id === certId);
       if (cert) {
+        if (!certPassword) {
+          certPassword = loadP12PasswordFromLocalStorage(cert.localStorageKey);
+        }
         const p12Base64 = loadP12FromLocalStorage(cert.localStorageKey);
-        if (p12Base64) {
+        if (p12Base64 && certPassword) {
           const result = await signPDFWithCertificate(annotatedBytes, p12Base64, certPassword);
           if (result.success && result.signedPdfBytes) {
             outputBytes = result.signedPdfBytes;
@@ -625,8 +730,9 @@ export const useESignStore = create<ESignStore>((set, get) => ({
 
     // 5. Calculate SHA-256 digest of the final bytes
     const hashBuffer = await crypto.subtle.digest("SHA-256", outputBytes.buffer as ArrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    const hashHex = Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
 
     const timestamp = new Date().toISOString();
     set({ pdfHash: hashHex, signedAt: timestamp, certificateUsedId: certUsedId });
@@ -641,5 +747,17 @@ export const useESignStore = create<ESignStore>((set, get) => ({
     URL.revokeObjectURL(url);
 
     return { hash: hashHex, bytes: outputBytes };
+  },
+
+  setLogoWatermarkEnabled: (enabled) => set({ logoWatermarkEnabled: enabled }),
+
+  loadLogo: async () => {
+    try {
+      const { imageToDataUrl } = await import("./utils");
+      const dataUrl = await imageToDataUrl("/logo.png");
+      set({ logoDataUrl: dataUrl });
+    } catch (error) {
+      console.error("Failed to load logo:", error);
+    }
   },
 }));

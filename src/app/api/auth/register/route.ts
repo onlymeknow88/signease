@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import crypto from "crypto";
+import bcrypt from "bcrypt";
 import prisma from "@/lib/db";
 
 export async function POST(request: Request) {
@@ -24,11 +24,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Password policy validation
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: "Password harus minimal 8 karakter." },
+        { status: 400 }
+      );
+    }
+
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Hash password (SHA-256)
-    const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
+    // Hash password with bcrypt (12 rounds)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     if (existingUser) {
       // Update unverified user

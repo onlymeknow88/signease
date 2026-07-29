@@ -14,13 +14,17 @@ export function PDFViewer() {
   const renderTasksRef = useRef<(import("pdfjs-dist").RenderTask | null)[]>([]);
   const hasRendered = useRef(false);
 
+  // Store pdfScale in a ref so renderPage doesn't recreate on every zoom change
+  const pdfScaleRef = useRef(pdfScale);
+  useEffect(() => { pdfScaleRef.current = pdfScale; }, [pdfScale]);
+
   const renderPage = useCallback(
     async (pageNum: number, pdfDoc: import("pdfjs-dist").PDFDocumentProxy) => {
       const page = await pdfDoc.getPage(pageNum);
       const canvas = canvasRefs.current[pageNum - 1];
       if (!canvas) return;
 
-      const viewport = page.getViewport({ scale: pdfScale });
+      const viewport = page.getViewport({ scale: pdfScaleRef.current });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
@@ -37,7 +41,7 @@ export function PDFViewer() {
       renderTasksRef.current[pageNum - 1] = renderTask;
       await renderTask.promise;
     },
-    [pdfScale]
+    [] // stable — reads pdfScale via ref
   );
 
   // Reset loading flag when pdfBytes changes
@@ -85,8 +89,8 @@ export function PDFViewer() {
         <PageWrapper
           key={i}
           pageIndex={i}
-          canvasRef={(el) => (canvasRefs.current[i] = el)}
-          pageContainerRef={(el) => (pageContainerRefs.current[i] = el)}
+          canvasRef={(el) => { canvasRefs.current[i] = el; }}
+          pageContainerRef={(el) => { pageContainerRefs.current[i] = el; }}
         />
       ))}
     </div>

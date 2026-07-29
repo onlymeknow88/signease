@@ -1,22 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
-import { useESignStore } from "@/lib/store";
-import { Toolbar } from "@/components/Toolbar";
+import { CheckCircle, Copy, Info, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { BottomNavBar } from "@/components/BottomNavBar";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { RightPanel } from "@/components/RightPanel";
+import { SecurityBadge } from "@/components/SecurityBadge";
+import { ThumbnailPanel } from "@/components/ThumbnailPanel";
+import { Toolbar } from "@/components/Toolbar";
 import { TopNavBar } from "@/components/TopNavBar";
 import { TopNavBarWorkspace } from "@/components/TopNavBarWorkspace";
-import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
-import { ThumbnailPanel } from "@/components/ThumbnailPanel";
-import { BottomNavBar } from "@/components/BottomNavBar";
-import { SecurityBadge } from "@/components/SecurityBadge";
-import { RightPanel } from "@/components/RightPanel";
 import { UploadPage } from "@/components/UploadPage";
+import { WorkspaceSidebar } from "@/components/WorkspaceSidebar";
+import dynamic from "next/dynamic";
+import { useESignStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Loader2, Info, CheckCircle, Copy } from "lucide-react";
-import Link from "next/link";
 
 // Dynamically import heavy components — avoids SSR issues with pdfjs + canvas
 const PDFViewer = dynamic(
@@ -70,12 +71,20 @@ export default function AppWorkspace() {
     setMounted(true);
   }, []);
 
-  // Sync subscription status with DB on mount, and load certificates + signatures
+  // Load certificates + signatures once on mount (not re-triggered by plan changes)
   useEffect(() => {
     if (!mounted || !user.loggedIn) return;
+    loadCertificates();
+    loadSavedSignatures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, user.loggedIn]);
+
+  // Sync subscription status separately — isolated so plan change doesn't cascade
+  useEffect(() => {
+    if (!mounted || !user.loggedIn || !user.email) return;
     const syncStatus = async () => {
       try {
-        const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(user.email || "guest@example.com")}`);
+        const res = await fetch(`/api/subscription/status?email=${encodeURIComponent(user.email)}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.plan && data.plan !== user.plan) {
@@ -86,9 +95,8 @@ export default function AppWorkspace() {
       }
     };
     syncStatus();
-    loadCertificates();
-    loadSavedSignatures();
-  }, [mounted, user.loggedIn, user.email, user.plan, setPlan, loadCertificates, loadSavedSignatures]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, user.loggedIn, user.email]);
 
   // Guard routing — redirect to login if not authenticated
   useEffect(() => {
@@ -182,7 +190,6 @@ export default function AppWorkspace() {
         <>
           <WorkspaceSidebar />
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <TopNavBar />
             <UploadPage />
           </div>
         </>
@@ -237,7 +244,7 @@ export default function AppWorkspace() {
                   id="pdf-scroll-container"
                   className="flex-1 overflow-auto min-h-0 p-8 flex justify-center items-start bg-surface-dim relative"
                 >
-                  <SecurityBadge />
+                  {/* <SecurityBadge /> */}
                   <PDFViewer />
                 </div>
               </div>

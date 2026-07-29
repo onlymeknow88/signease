@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useESignStore } from "@/lib/store";
 import { parsePKCS12Certificate } from "@/lib/crypto";
 import { DigitalCertificate } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { nanoid } from "nanoid";
 
 interface Props {
@@ -94,7 +95,7 @@ export function CertificateUploadModal({ onClose }: Props) {
         localStorageKey,
       };
 
-      const res = await fetch("/api/certificates", {
+      const res = await apiFetch("/api/certificates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -112,7 +113,7 @@ export function CertificateUploadModal({ onClose }: Props) {
         validTo: new Date(saved.validTo),
       };
 
-      addCertificate(cert, p12Base64);
+      addCertificate(cert, p12Base64, password);
       toast.success(`Sertifikat "${name}" berhasil diunggah`);
       onClose();
     } catch (err) {

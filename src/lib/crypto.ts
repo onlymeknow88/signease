@@ -480,8 +480,9 @@ export async function signPDFWithCertificate(
     const p12Bytes = base64ToUint8Array(p12Base64);
     const parsed = parsePKCS12Certificate(p12Bytes, password);
 
-    // 2. Load annotated PDF into pdf-lib
-    const pdfDoc = await PDFDocument.load(pdfBytes);
+    // 2. Load the already-annotated PDF bytes into pdf-lib
+    //    (annotations are already baked in by the caller — store.ts)
+    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
 
     // 3. Inject /ByteRange + /Contents placeholder (ISO 32000-1 §12.8)
     const signingTime = new Date();
@@ -493,14 +494,14 @@ export async function signPDFWithCertificate(
       location: "SignEase Client",
       signingTime,
       subFilter: SUBFILTER_ADOBE_PKCS7_DETACHED,
-      // Reserve 16KB for PKCS#7 — sufficient for self-signed RSA-2048 certs
-      signatureLength: 16384,
+      // 32KB placeholder — enough for RSA-2048 self-signed cert + TSA token
+      signatureLength: 32768,
     });
 
-    // 4. Serialize PDF with placeholder (must use non-object-streams for ByteRange)
+    // 4. Serialize with non-object-streams so @signpdf can locate ByteRange
     const pdfWithPlaceholder = await pdfDoc.save({ useObjectStreams: false });
 
-    // 5. Sign using ForgeSigner — @signpdf handles ByteRange calculation
+    // 5. Sign — @signpdf calculates actual ByteRange and fills /Contents
     const signer = new ForgeSigner(parsed.cert, parsed.privateKey);
     const signpdfInstance = new SignPdf();
     const signedBuffer = await signpdfInstance.sign(
@@ -532,6 +533,7 @@ export async function signPDFWithCertificate(
       documentHash: hashHex,
     };
   } catch (err) {
+    console.error("[signPDFWithCertificate] error:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Signing failed",
@@ -560,5 +562,19 @@ export function loadP12FromLocalStorage(key: string): string | null {
 export function removeP12FromLocalStorage(key: string): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(key);
+    localStorage.removeItem(`${key}_pwd`);
   }
+}
+
+export function saveP12PasswordToLocalStorage(key: string, password: string): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(`${key}_pwd`, password);
+  }
+}
+
+export function loadP12PasswordFromLocalStorage(key: string): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(`${key}_pwd`);
+  }
+  return null;
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useESignStore } from "@/lib/store";
+
 import { SignatureAnnotation } from "@/lib/types";
 import { generateTextImage } from "@/lib/utils";
+import { useESignStore } from "@/lib/store";
 
 // Annotation overlay on a single PDF page
 export function AnnotationLayer({

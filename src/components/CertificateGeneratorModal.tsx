@@ -7,6 +7,7 @@ import { useESignStore } from "@/lib/store";
 import { generateSelfSignedCertificate } from "@/lib/crypto";
 import { CertificateFormData, DigitalCertificate } from "@/lib/types";
 import { nanoid } from "nanoid";
+import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 
 interface Props {
@@ -67,18 +68,26 @@ export function CertificateGeneratorModal({ onClose }: Props) {
         validFrom: result.validFrom.toISOString(),
         validTo: result.validTo.toISOString(),
         isSelfSigned: true,
+        organization: form.organization || null,
+        organizationalUnit: form.organizationalUnit || null,
         localStorageKey,
       };
 
-      const res = await fetch("/api/certificates", {
+      const res = await apiFetch("/api/certificates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Gagal menyimpan sertifikat");
+        let errMsg = "Gagal menyimpan sertifikat";
+        try {
+          const err = await res.json();
+          errMsg = err.error || errMsg;
+        } catch {
+          errMsg = `Server error (${res.status})`;
+        }
+        throw new Error(errMsg);
       }
 
       const saved = await res.json();
@@ -88,7 +97,7 @@ export function CertificateGeneratorModal({ onClose }: Props) {
         validTo: new Date(saved.validTo),
       };
 
-      addCertificate(cert, result.p12Base64);
+      addCertificate(cert, result.p12Base64, form.password);
 
       toast.success(`Sertifikat "${form.name}" berhasil dibuat`, {
         action: {
@@ -230,7 +239,7 @@ export function CertificateGeneratorModal({ onClose }: Props) {
               ⚠️ Tanda Tangan Elektronik Tidak Tersertifikasi
             </p>
             <p className="text-[10px] text-amber-700 leading-relaxed">
-              Sertifikat yang dibuat di sini adalah <strong>self-signed</strong> dan tidak berinduk ke PSrE Induk Komdigi. Tanda tangan ini tergolong <strong>TTE Tidak Tersertifikasi</strong> sesuai PP 71/2019 — cocok untuk keperluan internal, namun <strong>tidak memiliki kekuatan hukum</strong> setara TTE Tersertifikasi (Privy, VIDA, BSrE, dll) untuk dokumen resmi/pemerintah.
+              Sertifikat yang dibuat di sini berjenis <strong>self-signed (PKCS#12 / X.509)</strong> sesuai standar internasional ISO/IEC 9594. Tanda tangan ini <strong>tetap sah secara hukum</strong> berdasarkan UU ITE No. 11/2008 untuk kontrak bisnis dan dokumen komersial, serta dapat diverifikasi di Adobe Acrobat. Namun <strong>tidak berlaku</strong> untuk dokumen resmi pemerintah yang mensyaratkan TTE Tersertifikasi Komdigi — untuk itu gunakan PSrE terakreditasi (Privy, VIDA, BSrE, dll).
             </p>
             <p className="text-[10px] text-amber-600">
               Kunci privat hanya tersimpan di browser Anda. Server tidak pernah menerima kunci privat.

@@ -49,6 +49,8 @@ export interface DigitalCertificate {
   validTo: Date;
   isValid: boolean;
   isSelfSigned: boolean;
+  organization?: string;
+  organizationalUnit?: string;
   localStorageKey: string;
 }
 

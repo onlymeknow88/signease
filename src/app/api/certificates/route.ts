@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
     validFrom,
     validTo,
     isSelfSigned,
+    organization,
+    organizationalUnit,
     localStorageKey,
   } = body;
 
@@ -66,21 +68,31 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date();
-  const cert = await prisma.certificate.create({
-    data: {
-      userId: user.id,
-      name,
-      commonName,
-      issuer,
-      serialNumber,
-      algorithm,
-      validFrom: new Date(validFrom),
-      validTo: new Date(validTo),
-      isValid: new Date(validTo) > now,
-      isSelfSigned: isSelfSigned ?? false,
-      localStorageKey,
-    },
-  });
-
-  return NextResponse.json(cert, { status: 201 });
+  try {
+    const cert = await prisma.certificate.create({
+      data: {
+        userId: user.id,
+        name,
+        commonName,
+        issuer,
+        serialNumber,
+        algorithm,
+        validFrom: new Date(validFrom),
+        validTo: new Date(validTo),
+        isValid: new Date(validTo) > now,
+        isSelfSigned: isSelfSigned ?? false,
+        organization: organization || null,
+        organizationalUnit: organizationalUnit || null,
+        localStorageKey,
+      },
+    });
+    return NextResponse.json(cert, { status: 201 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Certificate create error:", msg);
+    return NextResponse.json(
+      { error: `Gagal menyimpan sertifikat ke database: ${msg}` },
+      { status: 500 }
+    );
+  }
 }
