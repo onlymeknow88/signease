@@ -1,6 +1,6 @@
-# 🖋️ SignEase - Client-Side PDF Signer & Annotator
+# 🖋️ PDFinaja - Client-Side PDF Signer & Annotator
 
-SignEase adalah aplikasi penandatanganan dan pengeditan PDF berbasis Next.js yang berjalan **100% di sisi klien (client-side)**. Dokumen PDF yang Anda pilih tidak pernah diunggah atau disimpan ke server mana pun, memberikan tingkat privasi dan keamanan data yang maksimal bagi pengguna.
+PDFinaja adalah aplikasi penandatanganan dan pengeditan PDF berbasis Next.js yang berjalan **100% di sisi klien (client-side)**. Dokumen PDF yang Anda pilih tidak pernah diunggah atau disimpan ke server mana pun, memberikan tingkat privasi dan keamanan data yang maksimal bagi pengguna.
 
 ---
 
@@ -19,7 +19,7 @@ SignEase adalah aplikasi penandatanganan dan pengeditan PDF berbasis Next.js yan
 - **📜 Jaminan Integritas Dokumen (SHA-256)**
   Setiap kali dokumen berhasil ditandatangani dan diunduh, aplikasi akan secara otomatis menghitung nilai *hash* SHA-256 dari PDF tersebut. Riwayat tanda tangan dan integritas berkas dapat dilihat melalui Panel Sertifikat Digital.
 - **💼 Skema Keanggotaan & Watermark**
-  - **Free Plan**: Tanda tangan gratis tanpa batas dengan penambahan *watermark* diagonal samar dan catatan kaki (*footer*) berlabel "Signed with SignEase Free".
+  - **Free Plan**: Tanda tangan gratis tanpa batas dengan penambahan *watermark* diagonal samar dan catatan kaki (*footer*) berlabel "Signed with PDFinaja Free".
   - **Pro Plan**: Unduhan PDF bersih tanpa *watermark*, penambahan logo/branding kustom, dan dukungan prioritas.
 - **🔑 Autentikasi Keamanan Ganda**
   Sistem autentikasi didukung oleh **NextAuth** dengan **Supabase Database Adapter**, memungkinkan pengguna masuk via:

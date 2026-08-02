@@ -280,7 +280,7 @@ export default function PricingPage() {
             <div className="bg-slate-50 border-b border-outline-variant/60 px-5 py-4 flex justify-between items-center text-xs">
               <div>
                 <p className="text-[10px] text-outline font-bold uppercase">Pembayaran ke</p>
-                <p className="font-bold text-[#1D2B44] mt-0.5">SignEase Digital Assurance</p>
+                <p className="font-bold text-[#1D2B44] mt-0.5">PDFinaja Digital Assurance</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-outline font-bold uppercase">Total Tagihan</p>

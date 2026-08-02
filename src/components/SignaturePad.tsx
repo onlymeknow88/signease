@@ -324,7 +324,7 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
-                alt="SignEase"
+                alt="PDFinaja"
                 className="w-6 h-6 rounded-md object-contain"
                 onError={(e) => {
                   // Hide gracefully if logo.png isn't available, fall back to the pen icon only
@@ -586,7 +586,7 @@ export function SignaturePad({ onClose }: SignaturePadProps) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/logo.png"
-                    alt="SignEase"
+                    alt="PDFinaja"
                     className="w-5 h-5 rounded-md object-contain"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display = "none";

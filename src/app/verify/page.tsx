@@ -252,7 +252,7 @@ export default function VerifyPage() {
       <header className="border-b border-outline-variant bg-surface-container-low">
         <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="SignEase" className="h-8 w-auto" />
+            <img src="/logo.png" alt="PDFinaja" className="h-8 w-auto" />
           </Link>
           <Link
             href="/app"

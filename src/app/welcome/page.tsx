@@ -49,7 +49,7 @@ export default function WelcomePage() {
       {/* Header */}
       <nav className="bg-white border-b border-outline-variant/60 py-4 px-6 w-full flex justify-between items-center z-50">
         <Link href="/" className="font-bold text-2xl text-primary tracking-tight font-heading">
-          SignEase
+          PDFinaja
         </Link>
         <div className="flex gap-4 items-center">
           <button
@@ -123,7 +123,7 @@ export default function WelcomePage() {
             </div>
 
             <h1 className="text-3xl lg:text-[44px] font-black text-primary leading-[1.1] tracking-tight font-heading">
-              Selamat Datang di SignEase!
+              Selamat Datang di PDFinaja!
             </h1>
             
             <p className="text-on-surface-variant text-sm md:text-base leading-relaxed">
@@ -274,7 +274,7 @@ export default function WelcomePage() {
       {/* Footer */}
       <footer className="w-full py-5 bg-slate-50 border-t border-outline-variant/60 mt-auto">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-          <div className="text-on-surface-variant">© 2026 SignEase. Digital Assurance.</div>
+          <div className="text-on-surface-variant">© 2026 PDFinaja. Digital Assurance.</div>
           <div className="flex gap-6">
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="#">Keamanan</a>
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="#">Legal</a>

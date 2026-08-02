@@ -93,7 +93,7 @@ export function TopNavBarWorkspace() {
       sha256Hash: pdfHash,
       verificationUrl: "https://signease.app/verify",
       disclaimer:
-        "Sertifikat integritas ini dibuat secara lokal oleh SignEase client-side PDF signer.",
+        "Sertifikat integritas ini dibuat secara lokal oleh PDFinaja client-side PDF signer.",
     };
     const blob = new Blob([JSON.stringify(certData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -113,7 +113,7 @@ export function TopNavBarWorkspace() {
     <header className="h-12 border-b border-outline-variant bg-surface-container-low flex items-center px-4 gap-3 shrink-0 z-20">
       {/* Logo — SVG + tagline */}
       <Link href="/" className="flex items-center shrink-0">
-        <img src="/logo.png" alt="SignEase Logo" className="h-10 w-auto object-contain" />
+        <img src="/logo.png" alt="PDFinaja Logo" className="h-10 w-auto object-contain" />
       </Link>
 
       {/* Divider */}

@@ -71,7 +71,7 @@ export function TopNavBar() {
             <path d="M16 14l2.5 2.5L22 12" stroke="#86f8c9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <div className="flex flex-col hidden sm:flex">
-            <span className="text-sm font-bold text-primary leading-tight">SignEase</span>
+            <span className="text-sm font-bold text-primary leading-tight">PDFinaja</span>
             <span className="text-[9px] text-on-surface-variant leading-tight hidden md:block">
               Tanda Tangani PDF Tanpa Ribet
             </span>

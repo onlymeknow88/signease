@@ -73,7 +73,7 @@ export default function LoginPage() {
           <span className="material-symbols-outlined text-primary text-[32px] font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>
             draw
           </span>
-          <span className="text-2xl font-bold tracking-tight text-primary font-heading">SignEase</span>
+          <span className="text-2xl font-bold tracking-tight text-primary font-heading">PDFinaja</span>
         </Link>
         <div className="hidden md:flex items-center gap-6">
           <a className="text-xs font-bold text-on-surface-variant hover:text-primary transition-colors" href="#">Bantuan</a>
@@ -219,7 +219,7 @@ export default function LoginPage() {
       {/* Footer */}
       <footer className="w-full py-6 px-6 border-t border-outline-variant/30 bg-slate-50/50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-          <p className="text-on-surface-variant">© 2026 SignEase Inc. Legal Weight & Frictionless Efficiency.</p>
+          <p className="text-on-surface-variant">© 2026 PDFinaja Inc. Legal Weight & Frictionless Efficiency.</p>
           <div className="flex gap-6">
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="#">Kebijakan Privasi</a>
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="#">Ketentuan Layanan</a>
@@ -238,7 +238,7 @@ export default function LoginPage() {
                 src="https://lh3.googleusercontent.com/aida/AP1WRLsZrIXPZHnsf9rhMqiYEbf2TGOR4RUtH5pqWJaf2y9tOWVEV7Ujd0hXxNoKaXlZTvxh4d2vHw1V6bc3wGLbhFlG1E0YZuBHtsL_w1igLPOJt-yZlvah9moG3Xwg2dH0ZwRnMihvv_aGsZjTQvqn6sdB5f8toEjFAMt2OCUsBM7Xd87yWCN6IgWPCQnsAW0ExPXg2XA4AUvLVVBINO7i7WpMA8MGxnOmkV0G0x9hD_9wUMplmVxZws08Mcf8"
               />
               <h3 className="font-bold text-base text-on-surface">Pilih Akun Google</h3>
-              <p className="text-xs text-on-surface-variant mt-1">untuk melanjutkan ke SignEase</p>
+              <p className="text-xs text-on-surface-variant mt-1">untuk melanjutkan ke PDFinaja</p>
             </div>
 
             <div className="p-4 space-y-2 bg-slate-50/50 max-h-[300px] overflow-y-auto">

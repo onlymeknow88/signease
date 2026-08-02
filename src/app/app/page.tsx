@@ -170,7 +170,7 @@ export default function AppWorkspace() {
       sha256Hash: pdfHash,
       verificationUrl: "https://signease.app/verify",
       disclaimer:
-        "Sertifikat integritas ini dibuat secara lokal oleh SignEase client-side PDF signer. Integritas berkas PDF dapat diverifikasi dengan menghitung SHA-256 berkas PDF yang ditandatangani dan membandingkannya dengan hash di atas.",
+        "Sertifikat integritas ini dibuat secara lokal oleh PDFinaja client-side PDF signer. Integritas berkas PDF dapat diverifikasi dengan menghitung SHA-256 berkas PDF yang ditandatangani dan membandingkannya dengan hash di atas.",
     };
     const blob = new Blob([JSON.stringify(certData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);

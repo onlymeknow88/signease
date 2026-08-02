@@ -152,7 +152,7 @@ function VerifyOtpContent() {
       {/* Header */}
       <header className="w-full px-6 py-4 flex justify-center items-center">
         <Link href="/" className="text-2xl font-bold text-primary tracking-tight font-heading">
-          SignEase
+          PDFinaja
         </Link>
       </header>
 
@@ -257,7 +257,7 @@ function VerifyOtpContent() {
       {/* Footer */}
       <footer className="w-full py-5 flex flex-col md:flex-row justify-between items-center px-6 border-t border-outline-variant/30 bg-slate-50 text-xs">
         <div className="text-on-surface-variant mb-2 md:mb-0">
-          © 2026 SignEase Digital Assurance. Secure & Legally Binding.
+          © 2026 PDFinaja Digital Assurance. Secure & Legally Binding.
         </div>
         <div className="flex gap-6">
           <a className="text-on-surface-variant hover:text-primary underline transition-all" href="#">Privacy Policy</a>

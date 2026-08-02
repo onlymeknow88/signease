@@ -24,7 +24,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SignEase – Digital Assurance PDF Signer",
+  title: "PDFinaja – Digital Assurance PDF Signer",
   description:
     "Tanda tangani dokumen PDF Anda langsung di browser tanpa menyimpan file ke server. Privasi penuh, 100% client-side.",
   keywords: ["e-sign", "pdf", "tanda tangan digital", "browser", "tanpa upload"],

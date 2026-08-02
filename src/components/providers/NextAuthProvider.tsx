@@ -15,7 +15,6 @@ function SessionSyncer() {
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
       if (!user.loggedIn || user.email !== session.user.email) {
-        // Sync NextAuth session to Zustand store
         login(
           session.user.name || "User",
           session.user.email || "",
@@ -23,7 +22,6 @@ function SessionSyncer() {
         );
       }
     } else if (status === "unauthenticated" && user.loggedIn) {
-      // Clear Zustand store if NextAuth session is logged out
       logout();
     }
   }, [session, status, user.loggedIn, user.email, login, logout]);

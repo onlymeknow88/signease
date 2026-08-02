@@ -665,7 +665,7 @@ export const useESignStore = create<ESignStore>((set, get) => ({
       for (const page of pages) {
         const { width, height } = page.getSize();
 
-        const watermarkText = "Signed with SignEase Free — signease.app";
+        const watermarkText = "Signed with PDFinaja Free — signease.app";
         const fontSize = 26;
         const textWidth = helveticaFont.widthOfTextAtSize(watermarkText, fontSize);
         const textHeight = helveticaFont.heightAtSize(fontSize);

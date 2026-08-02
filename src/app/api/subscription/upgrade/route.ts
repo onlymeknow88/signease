@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
     let session = null;
     try {
-      session = await getServerSession(authOptions);
+      session = await auth();
     } catch (authError: any) {
       console.warn("getServerSession failed, falling back to body email for authentication in dev mode:", authError.message);
     }

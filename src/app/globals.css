@@ -207,3 +207,20 @@
 .pdf-page-container:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.08);
 }
+
+/* Force grab cursor on annotation elements including text nodes */
+.ann-grab {
+  cursor: grab !important;
+}
+.ann-grab *:not(.ann-resize-handle) {
+  cursor: grab !important;
+}
+.ann-grabbing {
+  cursor: grabbing !important;
+}
+.ann-grabbing *:not(.ann-resize-handle) {
+  cursor: grabbing !important;
+}
+.ann-text-edit, .ann-text-edit * {
+  cursor: text !important;
+}

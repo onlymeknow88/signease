@@ -729,7 +729,7 @@ export function RightPanel() {
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-destructive/60 text-destructive text-xs font-semibold hover:bg-destructive/5 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Hapus Bidang
+            Hapus
           </button>
         </div>
       )}

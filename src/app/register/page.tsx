@@ -109,7 +109,7 @@ export default function RegisterPage() {
       {/* Header */}
       <header className="w-full px-6 py-4 flex justify-between items-center max-w-7xl mx-auto bg-transparent z-10">
         <Link href="/" className="text-2xl font-bold text-primary tracking-tight font-heading">
-          SignEase
+          PDFinaja
         </Link>
         <div className="flex items-center gap-2 text-xs text-on-surface-variant">
           <span>Butuh bantuan?</span>
@@ -127,7 +127,7 @@ export default function RegisterPage() {
                 Keamanan Digital Tanpa Batas.
               </h2>
               <p className="text-sm text-primary-fixed/90 leading-relaxed max-w-[360px]">
-                Bergabunglah dengan ribuan profesional yang mempercayai SignEase untuk tanda tangan elektronik yang aman dan berkekuatan hukum.
+                Bergabunglah dengan ribuan profesional yang mempercayai PDFinaja untuk tanda tangan elektronik yang aman dan berkekuatan hukum.
               </p>
               
               <div className="space-y-4 pt-4">
@@ -252,7 +252,7 @@ export default function RegisterPage() {
                   <a className="text-primary font-bold hover:underline" href="#">
                     Kebijakan Privasi
                   </a>{" "}
-                  SignEase.
+                  PDFinaja.
                 </label>
               </div>
 
@@ -313,7 +313,7 @@ export default function RegisterPage() {
       {/* Footer */}
       <footer className="w-full py-5 flex flex-col md:flex-row justify-between items-center px-6 border-t border-outline-variant/30 bg-slate-50/50 text-xs">
         <div className="text-on-surface-variant mb-2 md:mb-0">
-          © 2026 SignEase Digital Assurance. Secure & Legally Binding.
+          © 2026 PDFinaja Digital Assurance. Secure & Legally Binding.
         </div>
         <div className="flex gap-6">
           <a className="text-on-surface-variant hover:text-primary underline transition-all duration-200" href="#">Privacy Policy</a>
@@ -333,7 +333,7 @@ export default function RegisterPage() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
               <h3 className="font-bold text-base text-on-surface">Daftar Akun Google</h3>
-              <p className="text-xs text-on-surface-variant mt-1">untuk melanjutkan ke SignEase</p>
+              <p className="text-xs text-on-surface-variant mt-1">untuk melanjutkan ke PDFinaja</p>
             </div>
 
             <div className="p-4 space-y-2 bg-slate-50/50 max-h-[300px] overflow-y-auto">

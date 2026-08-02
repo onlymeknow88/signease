@@ -318,7 +318,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-outline">Penerbit:</span>
-                    <span className="font-semibold text-on-surface text-right">SignEase CA</span>
+                    <span className="font-semibold text-on-surface text-right">PDFinaja CA</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-outline">Serial:</span>

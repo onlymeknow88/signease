@@ -69,9 +69,9 @@ export async function POST(request: Request) {
     });
 
     await transporter.sendMail({
-      from: `"SignEase" <${process.env.SMTP_USER}>`,
+      from: `"PDFinaja" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Kode OTP Pendaftaran SignEase",
+      subject: "Kode OTP Pendaftaran PDFinaja",
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 12px;">
           <h2 style="color: #4f46e5; margin-bottom: 8px;">Verifikasi Email Anda</h2>
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
           </div>
           <p style="font-size: 12px; color: #64748b; text-align: center;">Kode OTP ini berlaku selama 15 menit. Jangan bagikan kode ini kepada siapa pun.</p>
           <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 11px; color: #94a3b8; text-align: center;">© 2026 SignEase Digital Assurance.</p>
+          <p style="font-size: 11px; color: #94a3b8; text-align: center;">© 2026 PDFinaja Digital Assurance.</p>
         </div>
       `,
     });

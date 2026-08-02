@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
           <span className="material-symbols-outlined text-primary text-[32px] font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>
             verified_user
           </span>
-          <span className="text-2xl font-bold tracking-tight text-primary font-heading">SignEase</span>
+          <span className="text-2xl font-bold tracking-tight text-primary font-heading">PDFinaja</span>
         </div>
       </header>
 
@@ -158,7 +158,7 @@ export default function ForgotPasswordPage() {
       {/* Footer */}
       <footer className="w-full py-5 flex flex-col md:flex-row justify-between items-center px-6 border-t border-outline-variant/30 bg-slate-50/50 text-xs">
         <div className="text-on-surface-variant mb-2 md:mb-0">
-          © 2026 SignEase Digital Assurance. Secure & Legally Binding.
+          © 2026 PDFinaja Digital Assurance. Secure & Legally Binding.
         </div>
         <div className="flex gap-6">
           <a className="text-on-surface-variant hover:text-primary underline transition-all" href="#">Privacy Policy</a>

@@ -488,10 +488,10 @@ export async function signPDFWithCertificate(
     const signingTime = new Date();
     pdflibAddPlaceholder({
       pdfDoc,
-      reason: "Signed with SignEase",
+      reason: "Signed with PDFinaja",
       contactInfo: "",
       name: parsed.commonName,
-      location: "SignEase Client",
+      location: "PDFinaja Client",
       signingTime,
       subFilter: SUBFILTER_ADOBE_PKCS7_DETACHED,
       // 32KB placeholder — enough for RSA-2048 self-signed cert + TSA token

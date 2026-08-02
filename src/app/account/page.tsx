@@ -135,7 +135,7 @@ export default function AccountPage() {
         color: rgb(0.09, 0.27, 0.45),
       });
 
-      page.drawText("SignEase Digital Assurance", {
+      page.drawText("PDFinaja Digital Assurance", {
         x: 40,
         y: height - 68,
         size: 9,
@@ -159,7 +159,7 @@ export default function AccountPage() {
         ["Status", record.status.toUpperCase()],
         ["Nama Pelanggan", user.name],
         ["Email Pelanggan", user.email],
-        ["Paket Langganan", "SignEase Pro Member (Bulanan)"],
+        ["Paket Langganan", "PDFinaja Pro Member (Bulanan)"],
         ["Jumlah Nominal", `Rp ${record.amount.toLocaleString("id-ID")}`],
       ];
 
@@ -209,7 +209,7 @@ export default function AccountPage() {
         color: rgb(0.5, 0.5, 0.5),
       });
 
-      page.drawText("SignEase. Tidak memerlukan tanda tangan basah fisik.", {
+      page.drawText("PDFinaja. Tidak memerlukan tanda tangan basah fisik.", {
         x: 40,
         y: currentY - 62,
         size: 8.5,
@@ -315,7 +315,7 @@ export default function AccountPage() {
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-secondary uppercase tracking-widest">SignEase Pro</p>
+                    <p className="text-xs font-bold text-secondary uppercase tracking-widest">PDFinaja Pro</p>
                     <p className="font-bold text-sm text-on-surface mt-0.5">Paket Aktif & Berjalan</p>
                     <p className="text-[10px] text-on-surface-variant mt-1">
                       Perpanjangan otomatis berikutnya: 20 Des 2026
@@ -344,7 +344,7 @@ export default function AccountPage() {
                     <Info className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-outline uppercase tracking-widest">SignEase Free</p>
+                    <p className="text-xs font-bold text-outline uppercase tracking-widest">PDFinaja Free</p>
                     <p className="font-bold text-sm text-on-surface mt-0.5">Paket Gratis</p>
                     <p className="text-[10px] text-on-surface-variant mt-1">
                       Batasan 1 tanda tangan per bulan

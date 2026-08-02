@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SignatureAnnotation } from "@/lib/types";
-import { generateTextImage } from "@/lib/utils";
 import { useESignStore } from "@/lib/store";
 
 // Annotation overlay on a single PDF page
@@ -65,10 +64,10 @@ export function AnnotationLayer({
         const type = storeState.selectedSignatureType || "signature";
         const details = storeState.selectedTextDetails;
 
-        // For text type, use fixed size (like Adobe PDF text field)
+        // For text type, use smaller default size (40% of original)
         if (type === "text") {
-          sigW = 180;
-          sigH = 40;
+          sigW = 72;
+          sigH = 16;
         }
 
         // Text annotations: place top-left at cursor (I-beam behaviour).
@@ -145,6 +144,9 @@ export function AnnotationLayer({
   );
 }
 
+// Resize handle directions for 8-point selection
+type ResizeDirection = "se" | "sw" | "ne" | "nw" | "n" | "s" | "e" | "w";
+
 function DraggableAnnotation({
   annotation,
   containerRef,
@@ -158,11 +160,17 @@ function DraggableAnnotation({
   onRemove: () => void;
   isPlacingMode: boolean;
 }) {
-  const { selectedAnnotationId, setSelectedAnnotationId, addAnnotation } = useESignStore();
+  const { selectedAnnotationId, setSelectedAnnotationId } = useESignStore();
   const elRef = useRef<HTMLDivElement>(null);
-  const pageHeight = containerRef.current?.getBoundingClientRect().height || 800;
+  const containerHeight = containerRef.current?.getBoundingClientRect().height || 800;
+  const containerWidth = containerRef.current?.getBoundingClientRect().width || 600;
   const dragStart = useRef<{ mx: number; my: number; xR: number; yR: number } | null>(null);
-  const resizeStart = useRef<{ mx: number; my: number; wR: number; hR: number } | null>(null);
+  const resizeStart = useRef<{
+    mx: number; my: number;
+    xR: number; yR: number;
+    wR: number; hR: number;
+    dir: ResizeDirection;
+  } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isEditing, setIsEditing] = useState(
@@ -190,33 +198,19 @@ function DraggableAnnotation({
   const handleFinishEdit = () => {
     setIsEditing(false);
     if (!editValue.trim()) {
-      // Remove empty text annotation — same as Adobe PDF behavior
       onRemove();
       return;
     }
-    const size = annotation.textSize || 24;
-    const color = annotation.textColor || "#1a1a2e";
-    const fontFamily = annotation.fontFamily || "Poppins";
-    const isBold = annotation.isBold === true;
-    const isItalic = annotation.isItalic || false;
-    const isUnderline = annotation.isUnderline || false;
-    const { dataUrl, aspectRatio } = generateTextImage(editValue, size, color, fontFamily, isBold, isItalic, isUnderline);
-    
-    // Maintain font height (size on screen) and expand/shrink width horizontally
-    const newWidthRatio = Math.min(1 - annotation.xRatio, annotation.heightRatio / aspectRatio);
-    const newHeightRatio = newWidthRatio * aspectRatio;
-    
-    onUpdate({
-      text: editValue,
-      imageDataUrl: dataUrl,
-      widthRatio: newWidthRatio,
-      heightRatio: newHeightRatio,
-    });
+    onUpdate({ text: editValue });
   };
 
   // Drag handlers
   const handleDragStart = (e: React.PointerEvent) => {
     if (isPlacingMode) return;
+    if (isEditing) return;
+    // Skip drag if clicking a resize handle
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("ann-resize-handle")) return;
     e.stopPropagation();
     e.preventDefault();
     setSelectedAnnotationId(annotation.id);
@@ -257,8 +251,8 @@ function DraggableAnnotation({
     };
   }, [isDragging, annotation.widthRatio, annotation.heightRatio, containerRef, onUpdate]);
 
-  // Resize handler
-  const handleResizeStart = (e: React.PointerEvent) => {
+  // Resize handler — supports all 8 directions
+  const handleResizeStart = (e: React.PointerEvent, dir: ResizeDirection) => {
     e.stopPropagation();
     e.preventDefault();
     const container = containerRef.current;
@@ -266,8 +260,11 @@ function DraggableAnnotation({
     resizeStart.current = {
       mx: e.clientX,
       my: e.clientY,
+      xR: annotation.xRatio,
+      yR: annotation.yRatio,
       wR: annotation.widthRatio,
       hR: annotation.heightRatio,
+      dir,
     };
     setIsResizing(true);
   };
@@ -277,46 +274,34 @@ function DraggableAnnotation({
     const onMove = (e: PointerEvent) => {
       if (!resizeStart.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const dw = (e.clientX - resizeStart.current.mx) / rect.width;
-      
-      const newWidthRatio = Math.max(0.05, resizeStart.current.wR + dw);
-      let newHeightRatio = Math.max(0.02, resizeStart.current.hR + ((e.clientY - resizeStart.current.my) / rect.height));
-      
-      if (annotation.type === "text") {
-        // Lock aspect ratio for text annotations to prevent distortion
-        const aspect = resizeStart.current.hR / resizeStart.current.wR;
-        newHeightRatio = newWidthRatio * aspect;
+      const dx = (e.clientX - resizeStart.current.mx) / rect.width;
+      const dy = (e.clientY - resizeStart.current.my) / rect.height;
+      const { dir, xR, yR, wR, hR } = resizeStart.current;
+
+      let newX = xR, newY = yR, newW = wR, newH = hR;
+
+      if (dir.includes("e")) newW = Math.max(0.05, wR + dx);
+      if (dir.includes("s")) newH = Math.max(0.02, hR + dy);
+      if (dir.includes("w")) {
+        const dw = Math.min(wR - 0.05, dx);
+        newX = xR + dw;
+        newW = wR - dw;
       }
-      
+      if (dir.includes("n")) {
+        const dh = Math.min(hR - 0.02, dy);
+        newY = yR + dh;
+        newH = hR - dh;
+      }
+
       onUpdate({
-        widthRatio: newWidthRatio,
-        heightRatio: newHeightRatio,
+        xRatio: Math.max(0, newX),
+        yRatio: Math.max(0, newY),
+        widthRatio: Math.min(1 - Math.max(0, newX), newW),
+        heightRatio: Math.min(1 - Math.max(0, newY), newH),
       });
     };
     const onUp = () => {
       setIsResizing(false);
-      if (resizeStart.current && annotation.type === "text") {
-        const scaleFactor = annotation.widthRatio / resizeStart.current.wR;
-        const currentSize = annotation.textSize || 24;
-        const newSize = Math.max(10, Math.min(72, Math.round(currentSize * scaleFactor)));
-        
-        // Regenerate image at new size for maximum sharpness (crisp rendering)
-        const { dataUrl, aspectRatio } = generateTextImage(
-          annotation.text || "Nama Terang",
-          newSize,
-          annotation.textColor || "#004782",
-          annotation.fontFamily || "Poppins",
-          annotation.isBold !== false,
-          annotation.isItalic || false,
-          annotation.isUnderline || false
-        );
-        
-        onUpdate({
-          textSize: newSize,
-          imageDataUrl: dataUrl,
-          heightRatio: annotation.widthRatio * aspectRatio,
-        });
-      }
       resizeStart.current = null;
     };
     window.addEventListener("pointermove", onMove);
@@ -325,23 +310,47 @@ function DraggableAnnotation({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [isResizing, annotation.widthRatio, annotation.heightRatio, annotation.type, annotation.text, annotation.textColor, annotation.fontFamily, annotation.isBold, annotation.isItalic, annotation.isUnderline, containerRef, onUpdate]);
+  }, [isResizing, containerRef, onUpdate]);
 
   if (isPlacingMode) return null;
+
+  const isSelected = selectedAnnotationId === annotation.id;
+  const isText = annotation.type === "text";
+
+  // Compute font size in px from ratio
+  const fontSizePx = annotation.textSize
+    ? annotation.textSize
+    : Math.round(annotation.heightRatio * containerHeight * 0.75);
+
+  // 8 resize handles: position, cursor, direction
+  const handles: { style: React.CSSProperties; cursor: string; dir: ResizeDirection }[] = [
+    { style: { top: -4, left: -4 },             cursor: "nw-resize", dir: "nw" },
+    { style: { top: -4, left: "calc(50% - 4px)" }, cursor: "n-resize",  dir: "n"  },
+    { style: { top: -4, right: -4 },             cursor: "ne-resize", dir: "ne" },
+    { style: { top: "calc(50% - 4px)", right: -4 }, cursor: "e-resize",  dir: "e"  },
+    { style: { bottom: -4, right: -4 },          cursor: "se-resize", dir: "se" },
+    { style: { bottom: -4, left: "calc(50% - 4px)" }, cursor: "s-resize",  dir: "s"  },
+    { style: { bottom: -4, left: -4 },           cursor: "sw-resize", dir: "sw" },
+    { style: { top: "calc(50% - 4px)", left: -4 }, cursor: "w-resize",  dir: "w"  },
+  ];
 
   return (
     <div
       ref={elRef}
-      className={`absolute group/ann select-none pointer-events-auto transition-all duration-75 ${
-        isDragging || isResizing
-          ? `opacity-95 z-50 scale-[1.01] ${annotation.type !== "text" ? "shadow-2xl" : ""}`
-          : `z-20 ${annotation.type !== "text" ? "shadow-md hover:shadow-lg" : ""}`
+      className={`absolute select-none pointer-events-auto ${
+        isDragging || isResizing ? "z-50 opacity-95" : "z-20"
+      } ${!isText ? (isDragging || isResizing ? "shadow-2xl" : "shadow-md hover:shadow-lg") : ""} ${
+        isEditing ? "ann-text-edit" : isDragging ? "ann-grabbing" : "ann-grab"
       }`}
       style={{
         left: `${annotation.xRatio * 100}%`,
         top: `${annotation.yRatio * 100}%`,
         width: `${annotation.widthRatio * 100}%`,
         height: `${annotation.heightRatio * 100}%`,
+        outline: isSelected ? "1.5px dashed #3b82f6" : "none",
+        outlineOffset: "0px",
+        background: "transparent",
+        overflow: "visible",
       }}
       onPointerDown={handleDragStart}
       onDoubleClick={handleDoubleClick}
@@ -350,37 +359,25 @@ function DraggableAnnotation({
         setSelectedAnnotationId(annotation.id);
       }}
     >
-      {selectedAnnotationId === annotation.id && (
-        <>
-          {/* Focus Ring and Resize Handles matching code.html / Gambar 1 */}
-          <div className="absolute -inset-3 border-2 border-primary border-dashed rounded bg-primary/5 pointer-events-none z-10" />
-          
-          {/* Corner Handles */}
-          <div className="absolute -top-3 -left-3 w-3 h-3 bg-white border-2 border-primary rounded-full z-30 pointer-events-none shadow-sm" />
-          <div className="absolute -top-3 -right-3 w-3 h-3 bg-white border-2 border-primary rounded-full z-30 pointer-events-none shadow-sm" />
-          <div className="absolute -bottom-3 -left-3 w-3 h-3 bg-white border-2 border-primary rounded-full z-30 pointer-events-none shadow-sm" />
-          <div
-            className="absolute -bottom-3 -right-3 w-3 h-3 bg-white border-2 border-primary rounded-full z-30 cursor-se-resize shadow-md hover:scale-125 transition-transform pointer-events-auto"
-            onPointerDown={handleResizeStart}
-            title="Ubah Ukuran"
-          />
+      {/* 8-point resize handles — only when selected */}
+      {isSelected && handles.map((h) => (
+        <div
+          key={h.dir}
+          className="ann-resize-handle absolute w-2 h-2 bg-white border border-blue-500 z-30 pointer-events-auto shadow-sm"
+          style={{ ...h.style, cursor: h.cursor }}
+          onPointerDown={(e) => handleResizeStart(e, h.dir)}
+        />
+      ))}
 
-          {/* Floating Badge Tag */}
-          {!isDragging && !isResizing && (
-            <div
-              className={`absolute -top-9 left-0 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-md z-30 select-none ${
-                annotation.type === "text" ? "bg-secondary" : "bg-primary"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[12px] font-bold">
-                {annotation.type === "text" ? "edit" : "draw"}
-              </span>
-              <span>{annotation.type === "text" ? "TAMBAH TEKS" : "TANDA TANGAN"}</span>
-            </div>
-          )}
-        </>
+      {/* Signature badge (only for non-text type) */}
+      {isSelected && !isText && !isDragging && !isResizing && (
+        <div className="absolute -top-7 left-0 bg-primary text-primary-foreground px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-md z-30 select-none">
+          <span className="material-symbols-outlined text-[12px]">draw</span>
+          <span>TANDA TANGAN</span>
+        </div>
       )}
 
+      {/* Content */}
       {isEditing ? (
         <input
           ref={inputRef}
@@ -389,38 +386,51 @@ function DraggableAnnotation({
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={handleFinishEdit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleFinishEdit();
-            } else if (e.key === "Escape") {
-              setIsEditing(false);
-              onRemove(); // Cancel = remove empty annotation
-            }
+            if (e.key === "Enter") handleFinishEdit();
+            else if (e.key === "Escape") { setIsEditing(false); onRemove(); }
           }}
           onPointerDown={(e) => e.stopPropagation()}
           placeholder="Ketik teks di sini..."
-          className="w-full h-full bg-white/95 border-2 border-primary border-dashed outline-none rounded px-2 text-sm text-foreground"
+          className="w-full h-full bg-transparent outline-none border-none px-0.5"
           style={{
             color: annotation.textColor || "#004782",
             fontFamily: annotation.fontFamily || "Poppins",
-            fontWeight: annotation.isBold === true ? "bold" : "normal",
+            fontWeight: annotation.isBold ? "bold" : "normal",
             fontStyle: annotation.isItalic ? "italic" : "normal",
             textDecoration: annotation.isUnderline ? "underline" : "none",
-            fontSize: `${(annotation.heightRatio * pageHeight) * 0.55}px`,
+            fontSize: `${fontSizePx}px`,
             lineHeight: 1,
           }}
         />
-      ) : annotation.type === "text" && (!annotation.text || annotation.text === "") ? (
-        /* Empty text placeholder — dashed border like Adobe PDF */
+      ) : isText ? (
+        /* Text rendered as HTML — no canvas/image conversion */
         <div
-          className="w-full h-full border-2 border-dashed border-primary/60 bg-primary/5 rounded flex items-center justify-center cursor-text"
-          onClick={(e) => {
+          className={`w-full h-full flex items-center overflow-hidden ${isDragging ? "ann-grabbing" : "ann-grab"}`}
+          style={{
+            color: annotation.textColor || "#004782",
+            fontFamily: annotation.fontFamily || "Poppins",
+            fontWeight: annotation.isBold ? "bold" : "normal",
+            fontStyle: annotation.isItalic ? "italic" : "normal",
+            textDecoration: annotation.isUnderline ? "underline" : "none",
+            fontSize: `${fontSizePx}px`,
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            userSelect: "none",
+            pointerEvents: "auto",
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            handleDragStart(e);
+          }}
+          onDoubleClick={(e) => {
             e.stopPropagation();
             setIsEditing(true);
+            setEditValue(annotation.text || "");
           }}
         >
-          <span className="text-primary/40 text-xs font-medium select-none pointer-events-none">
-            Klik untuk mengetik teks...
-          </span>
+          {annotation.text || (
+            <span className="text-primary/40 text-xs">Klik untuk mengetik...</span>
+          )}
         </div>
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -430,54 +440,6 @@ function DraggableAnnotation({
           className="w-full h-full object-contain pointer-events-none"
           draggable={false}
         />
-      )}
-
-      {/* Quick Action Floating Menu (Bottom) */}
-      {selectedAnnotationId === annotation.id && !isDragging && !isResizing && (
-        <div 
-          className="absolute -bottom-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white rounded-lg shadow-xl px-2 py-1 flex items-center gap-1.5 whitespace-nowrap z-30 text-xs pointer-events-auto select-none border border-slate-700 animate-in fade-in duration-100"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {/* Duplicate Button */}
-          <button
-            className="p-1 hover:bg-white/10 rounded transition-colors text-white flex items-center justify-center cursor-pointer"
-            title="Duplikat"
-            onClick={(e) => {
-              e.stopPropagation();
-              const newAnn = {
-                pageIndex: annotation.pageIndex,
-                xRatio: Math.min(0.9, annotation.xRatio + 0.04),
-                yRatio: Math.min(0.9, annotation.yRatio + 0.04),
-                widthRatio: annotation.widthRatio,
-                heightRatio: annotation.heightRatio,
-                imageDataUrl: annotation.imageDataUrl,
-                type: annotation.type,
-              };
-              addAnnotation(newAnn);
-            }}
-          >
-            <span className="material-symbols-outlined text-[18px]">content_copy</span>
-          </button>
-
-          {/* Delete Button */}
-          <button
-            className="p-1 hover:bg-white/10 rounded transition-colors text-red-400 flex items-center justify-center cursor-pointer"
-            title="Hapus"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-          >
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-          </button>
-
-          <div className="w-[1px] h-4 bg-white/20 mx-0.5" />
-
-          {/* Drag Handle representation */}
-          <div className="p-1 cursor-grab flex items-center justify-center text-white/60" title="Geser (Klik & Seret)">
-            <span className="material-symbols-outlined text-[18px]">drag_indicator</span>
-          </div>
-        </div>
       )}
     </div>
   );
