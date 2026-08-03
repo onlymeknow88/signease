@@ -32,7 +32,6 @@ export function AnnotationLayer({
 
   const pageAnnotations = annotations.filter((a) => a.pageIndex === pageIndex);
 
-  // Handle click to place signature
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!isPlacingMode) {
@@ -51,12 +50,10 @@ export function AnnotationLayer({
         let sigW = 220;
         let sigH = 220 * (img.height / img.width);
 
-        // Adjust dimensions for square symbols like check/cross marks
         if (Math.abs(img.width - img.height) < 5) {
           sigW = 50;
           sigH = 50;
         } else if (img.width > 400) {
-          // Larger blocks (like Adobe Digitally Signed block)
           sigW = 260;
           sigH = 260 * (img.height / img.width);
         }
@@ -65,14 +62,11 @@ export function AnnotationLayer({
         const type = storeState.selectedSignatureType || "signature";
         const details = storeState.selectedTextDetails;
 
-        // For text type, use a cleaner starting scale (not 40% / too small)
         if (type === "text") {
-          sigW = 120; // Default width set to 120 (larger size, not squeezed)
-          sigH = 24;  // Height set to match 24px default font size nicely
+          sigW = 120;
+          sigH = 24;
         }
 
-        // Text annotations: place top-left at cursor (I-beam behaviour).
-        // Signature annotations: center on cursor (crosshair behaviour).
         const xOffset = type === "text" ? 0 : sigW / 2;
         const yOffset = type === "text" ? 0 : sigH / 2;
 
@@ -85,7 +79,7 @@ export function AnnotationLayer({
           imageDataUrl: selectedSignatureUrl,
           type,
           ...(type === "text" ? {
-            text: details?.text ?? "Ketik teks di sini...", // Fallback to instruction text
+            text: details?.text ?? "",
             textColor: details?.color ?? "#004782",
             textSize: details?.size ?? 24,
             fontFamily: details?.fontFamily ?? "Poppins",
@@ -95,9 +89,7 @@ export function AnnotationLayer({
           } : {})
         });
 
-        // If placing text, auto-trigger editing mode after annotation is added
         if (type === "text") {
-          // Small delay to let annotation render first
           setTimeout(() => {
             const latestAnnotations = useESignStore.getState().annotations;
             const newAnn = latestAnnotations[latestAnnotations.length - 1];
@@ -133,7 +125,6 @@ export function AnnotationLayer({
         />
       ))}
 
-      {/* Placing mode overlay hint */}
       {isPlacingMode && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded-full shadow-lg pointer-events-none animate-bounce z-20">
           {useESignStore.getState().selectedSignatureType === "text"
@@ -145,7 +136,6 @@ export function AnnotationLayer({
   );
 }
 
-// Resize handle directions for 8-point selection
 type ResizeDirection = "se" | "sw" | "ne" | "nw" | "n" | "s" | "e" | "w";
 
 function DraggableAnnotation({
@@ -165,39 +155,40 @@ function DraggableAnnotation({
   const elRef = useRef<HTMLDivElement>(null);
   const containerHeight = containerRef.current?.getBoundingClientRect().height || 800;
   const containerWidth = containerRef.current?.getBoundingClientRect().width || 600;
-  const dragStart = useRef<{ mx: number; my: number; xR: number; yR: number } | null>(null);
-  const resizeStart = useRef<{
-    mx: number; my: number;
-    xR: number; yR: number;
-    wR: number; hR: number;
-    dir: ResizeDirection;
-  } | null>(null);
+
+  // All drag/resize state lives in refs to avoid stale closure issues
+  const dragRef = useRef<{ mx: number; my: number; xR: number; yR: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const resizeRef = useRef<{ mx: number; my: number; xR: number; yR: number; wR: number; hR: number; dir: ResizeDirection } | null>(null);
+
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [isEditing, setIsEditing] = useState(
-    annotation.type === "text" && (!annotation.text || annotation.text === "")
-  );
+  const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(annotation.text || "");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Derived state — declared early so handlers can reference them
   const isSelected = selectedAnnotationId === annotation.id;
   const isText = annotation.type === "text";
 
-  // Auto-focus input when entering edit mode
+  // Auto-select new empty text annotation and enter edit mode
   useEffect(() => {
-    if (isEditing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
+    if (isText && isSelected && !annotation.text) {
+      setIsEditing(true);
+      setEditValue("");
+    }
+  }, [isSelected, isText, annotation.text]);
+
+  // Focus textarea when editing
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
     }
   }, [isEditing]);
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    if (annotation.type === "text") {
-      e.stopPropagation();
-      setIsEditing(true);
-      setEditValue(annotation.text || "");
-    }
+  const enterEditMode = () => {
+    setEditValue(annotation.text || "");
+    setIsEditing(true);
   };
 
   const handleFinishEdit = () => {
@@ -209,60 +200,67 @@ function DraggableAnnotation({
     onUpdate({ text: editValue });
   };
 
-  // Drag handlers
-  const handleDragStart = (e: React.PointerEvent) => {
-    if (isPlacingMode) return;
-    if (isEditing) return;
-    // Skip drag if clicking a resize handle
+  // Drag — attach listeners directly on pointerdown so no stale closures
+  const handleDragPointerDown = (e: React.PointerEvent) => {
+    if (isPlacingMode || isEditing) return;
     const target = e.target as HTMLElement;
     if (target.classList.contains("ann-resize-handle")) return;
     e.stopPropagation();
-    e.preventDefault();
-    setSelectedAnnotationId(annotation.id);
+
+    // Do NOT select here — selection happens in onClick after pointer up
+    // This prevents the toolbar from appearing while still holding the pointer
+
     const container = containerRef.current;
     if (!container) return;
-    dragStart.current = {
+
+    isDraggingRef.current = false;
+    dragRef.current = {
       mx: e.clientX,
       my: e.clientY,
       xR: annotation.xRatio,
       yR: annotation.yRatio,
     };
-    setIsDragging(true);
-    document.body.classList.add("sig-dragging");
-  };
 
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMove = (e: PointerEvent) => {
-      if (!dragStart.current || !containerRef.current) return;
+    const THRESHOLD = 5;
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current || !containerRef.current) return;
+      const dx = ev.clientX - dragRef.current.mx;
+      const dy = ev.clientY - dragRef.current.my;
+
+      if (!isDraggingRef.current) {
+        if (Math.sqrt(dx * dx + dy * dy) < THRESHOLD) return;
+        isDraggingRef.current = true;
+        setIsDragging(true);
+        document.body.classList.add("sig-dragging");
+      }
+
       const rect = containerRef.current.getBoundingClientRect();
-      const dx = (e.clientX - dragStart.current.mx) / rect.width;
-      const dy = (e.clientY - dragStart.current.my) / rect.height;
       onUpdate({
-        xRatio: Math.max(0, Math.min(1 - annotation.widthRatio, dragStart.current.xR + dx)),
-        yRatio: Math.max(0, Math.min(1 - annotation.heightRatio, dragStart.current.yR + dy)),
+        xRatio: Math.max(0, Math.min(1 - annotation.widthRatio, dragRef.current.xR + dx / rect.width)),
+        yRatio: Math.max(0, Math.min(1 - annotation.heightRatio, dragRef.current.yR + dy / rect.height)),
       });
     };
+
     const onUp = () => {
+      dragRef.current = null;
+      isDraggingRef.current = false;
       setIsDragging(false);
-      dragStart.current = null;
       document.body.classList.remove("sig-dragging");
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [isDragging, annotation.widthRatio, annotation.heightRatio, containerRef, onUpdate]);
 
-  // Resize handler — supports all 8 directions
-  const handleResizeStart = (e: React.PointerEvent, dir: ResizeDirection) => {
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  // Resize — same pattern, listeners attached inline
+  const handleResizePointerDown = (e: React.PointerEvent, dir: ResizeDirection) => {
     e.stopPropagation();
     e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    resizeStart.current = {
+
+    resizeRef.current = {
       mx: e.clientX,
       my: e.clientY,
       xR: annotation.xRatio,
@@ -272,31 +270,19 @@ function DraggableAnnotation({
       dir,
     };
     setIsResizing(true);
-  };
 
-  useEffect(() => {
-    if (!isResizing) return;
-    const onMove = (e: PointerEvent) => {
-      if (!resizeStart.current || !containerRef.current) return;
+    const onMove = (ev: PointerEvent) => {
+      if (!resizeRef.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const dx = (e.clientX - resizeStart.current.mx) / rect.width;
-      const dy = (e.clientY - resizeStart.current.my) / rect.height;
-      const { dir, xR, yR, wR, hR } = resizeStart.current;
+      const dx = (ev.clientX - resizeRef.current.mx) / rect.width;
+      const dy = (ev.clientY - resizeRef.current.my) / rect.height;
+      const { dir: d, xR, yR, wR, hR } = resizeRef.current;
 
       let newX = xR, newY = yR, newW = wR, newH = hR;
-
-      if (dir.includes("e")) newW = Math.max(0.05, wR + dx);
-      if (dir.includes("s")) newH = Math.max(0.02, hR + dy);
-      if (dir.includes("w")) {
-        const dw = Math.min(wR - 0.05, dx);
-        newX = xR + dw;
-        newW = wR - dw;
-      }
-      if (dir.includes("n")) {
-        const dh = Math.min(hR - 0.02, dy);
-        newY = yR + dh;
-        newH = hR - dh;
-      }
+      if (d.includes("e")) newW = Math.max(0.05, wR + dx);
+      if (d.includes("s")) newH = Math.max(0.02, hR + dy);
+      if (d.includes("w")) { const dw = Math.min(wR - 0.05, dx); newX = xR + dw; newW = wR - dw; }
+      if (d.includes("n")) { const dh = Math.min(hR - 0.02, dy); newY = yR + dh; newH = hR - dh; }
 
       onUpdate({
         xRatio: Math.max(0, newX),
@@ -305,35 +291,33 @@ function DraggableAnnotation({
         heightRatio: Math.min(1 - Math.max(0, newY), newH),
       });
     };
+
     const onUp = () => {
+      resizeRef.current = null;
       setIsResizing(false);
-      resizeStart.current = null;
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [isResizing, containerRef, onUpdate]);
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   if (isPlacingMode) return null;
 
-  // Compute font size in px from ratio
   const fontSizePx = annotation.textSize
     ? annotation.textSize
     : Math.round(annotation.heightRatio * containerHeight * 0.75);
 
-  // 8 resize handles: position, cursor, direction
   const handles: { style: React.CSSProperties; cursor: string; dir: ResizeDirection }[] = [
-    { style: { top: -4, left: -4 },             cursor: "nw-resize", dir: "nw" },
-    { style: { top: -4, left: "calc(50% - 4px)" }, cursor: "n-resize",  dir: "n"  },
-    { style: { top: -4, right: -4 },             cursor: "ne-resize", dir: "ne" },
-    { style: { top: "calc(50% - 4px)", right: -4 }, cursor: "e-resize",  dir: "e"  },
-    { style: { bottom: -4, right: -4 },          cursor: "se-resize", dir: "se" },
+    { style: { top: -4, left: -4 },                   cursor: "nw-resize", dir: "nw" },
+    { style: { top: -4, left: "calc(50% - 4px)" },    cursor: "n-resize",  dir: "n"  },
+    { style: { top: -4, right: -4 },                   cursor: "ne-resize", dir: "ne" },
+    { style: { top: "calc(50% - 4px)", right: -4 },   cursor: "e-resize",  dir: "e"  },
+    { style: { bottom: -4, right: -4 },                cursor: "se-resize", dir: "se" },
     { style: { bottom: -4, left: "calc(50% - 4px)" }, cursor: "s-resize",  dir: "s"  },
-    { style: { bottom: -4, left: -4 },           cursor: "sw-resize", dir: "sw" },
-    { style: { top: "calc(50% - 4px)", left: -4 }, cursor: "w-resize",  dir: "w"  },
+    { style: { bottom: -4, left: -4 },                 cursor: "sw-resize", dir: "sw" },
+    { style: { top: "calc(50% - 4px)", left: -4 },    cursor: "w-resize",  dir: "w"  },
   ];
 
   return (
@@ -341,9 +325,7 @@ function DraggableAnnotation({
       ref={elRef}
       className={`absolute select-none pointer-events-auto ${
         isDragging || isResizing ? "z-50 opacity-95" : "z-20"
-      } ${!isText ? (isDragging || isResizing ? "shadow-2xl" : "shadow-md hover:shadow-lg") : ""} ${
-        isEditing ? "ann-text-edit" : isDragging ? "ann-grabbing" : "ann-grab"
-      }`}
+      } ${!isText ? (isDragging || isResizing ? "shadow-2xl" : "shadow-md hover:shadow-lg") : ""}`}
       style={{
         left: `${annotation.xRatio * 100}%`,
         top: `${annotation.yRatio * 100}%`,
@@ -354,30 +336,26 @@ function DraggableAnnotation({
         background: "transparent",
         overflow: "visible",
       }}
-      onPointerDown={handleDragStart}
-      onDoubleClick={handleDoubleClick}
+      // Wrapper handles drag for signatures; text content handles its own clicks
+      onPointerDown={!isText ? handleDragPointerDown : undefined}
       onClick={(e) => {
         e.stopPropagation();
-        if (isText && isSelected && !isDragging) {
-          // Second click on already-selected text annotation → enter edit mode
-          setIsEditing(true);
-          setEditValue(annotation.text || "");
-          return;
+        if (!isDraggingRef.current) {
+          setSelectedAnnotationId(annotation.id);
         }
-        setSelectedAnnotationId(annotation.id);
       }}
     >
-      {/* 8-point resize handles — only when selected */}
-      {isSelected && handles.map((h) => (
+      {/* Resize handles — only when selected and not mid-action */}
+      {isSelected && !isDragging && !isResizing && handles.map((h) => (
         <div
           key={h.dir}
           className="ann-resize-handle absolute w-2 h-2 bg-white border border-blue-500 z-30 pointer-events-auto shadow-sm"
           style={{ ...h.style, cursor: h.cursor }}
-          onPointerDown={(e) => handleResizeStart(e, h.dir)}
+          onPointerDown={(e) => handleResizePointerDown(e, h.dir)}
         />
       ))}
 
-      {/* Signature badge (only for non-text type) */}
+      {/* Signature badge */}
       {isSelected && !isText && !isDragging && !isResizing && (
         <div className="absolute -top-7 left-0 bg-primary text-primary-foreground px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-md z-30 select-none">
           <span className="material-symbols-outlined text-[12px]">draw</span>
@@ -388,82 +366,43 @@ function DraggableAnnotation({
       {/* Content */}
       {isEditing ? (
         <textarea
-          ref={inputRef as any}
+          ref={inputRef}
           value={editValue}
           onChange={(e) => {
             const val = e.target.value;
             setEditValue(val);
-
-            // Dynamically recalculate dimensions of the container so typing scaling is auto-dynamic
             const size = annotation.textSize || 24;
             const color = annotation.textColor || "#004782";
             const fontFamily = annotation.fontFamily || "Poppins";
             const isBold = annotation.isBold !== false;
             const isItalic = annotation.isItalic || false;
             const isUnderline = annotation.isUnderline || false;
-
-            // Generate temporary canvas to measure exact text width in pixels
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
             if (ctx) {
-              const boldStyle = isBold ? "bold" : "";
-              const italicStyle = isItalic ? "italic" : "";
-              ctx.font = `${italicStyle} ${boldStyle} ${size}px ${fontFamily}`.trim();
-              
-              // Split typed value by newlines to measure multi-line sizes
+              ctx.font = `${isItalic ? "italic" : ""} ${isBold ? "bold" : ""} ${size}px ${fontFamily}`.trim();
               const lines = (val || " ").split("\n");
-              let maxLineWidth = 0;
-              lines.forEach(l => {
-                const metrics = ctx.measureText(l || " ");
-                if (metrics.width > maxLineWidth) maxLineWidth = metrics.width;
-              });
-              
-              const calculatedWidthPx = Math.max(120, maxLineWidth + size * 0.4);
-              const containerWidthPx = containerWidth || 600;
-              const newWidthRatio = Math.min(1 - annotation.xRatio, calculatedWidthPx / containerWidthPx);
-              
-              // Scale height dynamically based on the number of lines
-              const calculatedHeightPx = (size * 1.25) * lines.length + size * 0.3;
-              const containerHeightPx = containerHeight || 800;
-              const newHeightRatio = calculatedHeightPx / containerHeightPx;
-
-              // Generate new image data URL dynamically for baking
+              let maxW = 0;
+              lines.forEach(l => { const m = ctx.measureText(l || " "); if (m.width > maxW) maxW = m.width; });
+              const newWidthRatio = Math.min(1 - annotation.xRatio, Math.max(120, maxW + size * 0.4) / (containerWidth || 600));
+              const newHeightRatio = ((size * 1.25) * lines.length + size * 0.3) / (containerHeight || 800);
               const { dataUrl } = generateTextImage(
-                val || " ",
-                size,
-                color,
-                fontFamily,
-                isBold,
-                isItalic,
-                isUnderline,
-                annotation.bgColor || "transparent",
-                annotation.opacity !== undefined ? annotation.opacity : 1,
-                annotation.textAlign || "left"
+                val || " ", size, color, fontFamily, isBold, isItalic, isUnderline,
+                annotation.bgColor || "transparent", annotation.opacity ?? 1, annotation.textAlign || "left"
               );
-
-              onUpdate({
-                text: val,
-                widthRatio: newWidthRatio,
-                heightRatio: newHeightRatio,
-                imageDataUrl: dataUrl,
-              });
+              onUpdate({ text: val, widthRatio: newWidthRatio, heightRatio: newHeightRatio, imageDataUrl: dataUrl });
             } else {
               onUpdate({ text: val });
             }
           }}
           onBlur={handleFinishEdit}
           onKeyDown={(e) => {
-            // Enter key now inserts a newline; Ctrl+Enter or Command+Enter finishes edit
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              handleFinishEdit();
-            } else if (e.key === "Escape") { 
-              setIsEditing(false); 
-              onRemove(); 
-            }
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleFinishEdit();
+            else if (e.key === "Escape") { setIsEditing(false); onRemove(); }
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          placeholder="Ketik teks paragraf di sini... (Ctrl+Enter untuk selesai)"
-          className="w-full h-full bg-transparent outline-none border-none px-0.5 resize-none overflow-hidden"
+          placeholder="Ketik teks di sini... (Ctrl+Enter selesai)"
+          className="w-full h-full bg-transparent outline-none border-none px-0.5 resize-none overflow-hidden ann-text-edit"
           style={{
             color: annotation.textColor || "#004782",
             fontFamily: annotation.fontFamily || "Poppins",
@@ -472,13 +411,15 @@ function DraggableAnnotation({
             textDecoration: annotation.isUnderline ? "underline" : "none",
             fontSize: `${fontSizePx}px`,
             lineHeight: 1.25,
-            textAlign: annotation.textAlign || "left",
+            textAlign: (annotation.textAlign as React.CSSProperties["textAlign"]) || "left",
             backgroundColor: annotation.bgColor || "transparent",
-            opacity: annotation.opacity !== undefined ? annotation.opacity : 1,
+            opacity: annotation.opacity ?? 1,
+            position: "relative",
+            zIndex: 20,
           }}
         />
       ) : isText ? (
-        /* Text rendered as HTML — no canvas/image conversion */
+        /* Text display — clicking selects, double-click or click-when-selected = edit */
         <div
           className={`w-full h-full flex flex-col justify-start overflow-hidden ${isDragging ? "ann-grabbing" : "ann-grab"}`}
           style={{
@@ -489,30 +430,37 @@ function DraggableAnnotation({
             textDecoration: annotation.isUnderline ? "underline" : "none",
             fontSize: `${fontSizePx}px`,
             lineHeight: 1.25,
-            whiteSpace: "pre-wrap", // Support line-break formatting on viewer
+            whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             userSelect: "none",
-            pointerEvents: "auto",
-            textAlign: annotation.textAlign || "left",
+            textAlign: (annotation.textAlign as React.CSSProperties["textAlign"]) || "left",
             backgroundColor: annotation.bgColor || "transparent",
-            opacity: annotation.opacity !== undefined ? annotation.opacity : 1,
+            opacity: annotation.opacity ?? 1,
+            position: "relative",
+            zIndex: 15,
+            pointerEvents: "auto",
           }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            handleDragStart(e);
-          }}
+          onPointerDown={handleDragPointerDown}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            setIsEditing(true);
-            setEditValue(annotation.text || "");
+            enterEditMode();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isSelected && !isDraggingRef.current) {
+              // Second click on already-selected text = enter edit
+              enterEditMode();
+            } else {
+              setSelectedAnnotationId(annotation.id);
+            }
           }}
         >
           {annotation.text ? (
             annotation.text.split("\n").map((line, idx) => (
-              <div key={idx} className="min-h-[1.25em]">{line}</div>
+              <div key={idx} className="min-h-[1.25em]">{line || "\u00A0"}</div>
             ))
           ) : (
-            <span className="text-primary/40 text-xs">Klik untuk mengetik...</span>
+            <span className="text-primary/40 text-xs pointer-events-none">Klik untuk mengetik...</span>
           )}
         </div>
       ) : (

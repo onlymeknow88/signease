@@ -214,6 +214,9 @@ interface ESignStore {
   logoDataUrl: string | null;
   setLogoWatermarkEnabled: (enabled: boolean) => void;
   loadLogo: () => Promise<void>;
+
+  // Append pages from another PDF to the active PDF
+  appendPdfPages: (newPdfBytes: Uint8Array) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -761,6 +764,25 @@ export const useESignStore = create<ESignStore>((set, get) => ({
       set({ logoDataUrl: dataUrl });
     } catch (error) {
       console.error("Failed to load logo:", error);
+    }
+  },
+
+  appendPdfPages: async (newPdfBytes: Uint8Array) => {
+    const { pdfBytes } = get();
+    if (!pdfBytes) return;
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const basePdf = await PDFDocument.load(pdfBytes);
+      const addPdf = await PDFDocument.load(newPdfBytes);
+      const pageCount = addPdf.getPageCount();
+      const copiedPages = await basePdf.copyPages(addPdf, Array.from({ length: pageCount }, (_, i) => i));
+      copiedPages.forEach((page) => basePdf.addPage(page));
+      const merged = await basePdf.save();
+      // Only update pdfBytes — PDFViewer will reload and set totalPages itself
+      set({ pdfBytes: new Uint8Array(merged) });
+    } catch (err) {
+      console.error("appendPdfPages failed:", err);
+      throw err;
     }
   },
 }));

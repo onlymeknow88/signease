@@ -64,6 +64,8 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     setPdfFile,
     setPdfBytes,
     setRightPanelTab,
+    pdfFile,
+    appendPdfPages,
   } = useESignStore();
 
   const selectedAnnotation = annotations.find(
@@ -74,6 +76,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
   const [openPopup, setOpenPopup] = useState<"signature" | "text" | "cert" | "bgColor" | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const appendFileInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   // Close popup when clicking outside
@@ -89,6 +92,27 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleAppendClick = () => {
+    appendFileInputRef.current?.click();
+  };
+
+  const handleAppendFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      alert("Hanya file PDF yang didukung.");
+      e.target.value = "";
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      await appendPdfPages(new Uint8Array(buffer));
+    } catch {
+      alert("Gagal menambahkan halaman PDF. Pastikan file tidak terproteksi.");
+    }
+    e.target.value = "";
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,13 +248,33 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
         onChange={handleFileChange}
       />
 
+      {/* Hidden Append PDF file input */}
+      <input
+        ref={appendFileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={handleAppendFileChange}
+      />
+
       {/* Row 1: Primary Toolbar Tools (Left-aligned or Centered) */}
       <div className="w-full flex items-center justify-between px-2">
         <div className="flex items-center gap-1">
           {/* Upload PDF */}
-          <button onClick={handleUploadClick} className={iconBtn(false)} title="Upload PDF">
+          <button onClick={handleUploadClick} className={iconBtn(false)} title="Upload PDF Baru">
             <span className="material-symbols-outlined text-[18px]">upload_file</span>
           </button>
+
+          {/* Tambah Halaman PDF — only when a PDF is already open */}
+          {pdfFile && (
+            <button
+              onClick={handleAppendClick}
+              className={iconBtn(false)}
+              title="Tambah Halaman dari PDF Lain"
+            >
+              <span className="material-symbols-outlined text-[18px]">note_add</span>
+            </button>
+          )}
 
           <div className="w-px h-6 bg-outline-variant/60 mx-1" />
 
