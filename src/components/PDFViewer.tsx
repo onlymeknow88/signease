@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useESignStore } from "@/lib/store";
 import { AnnotationLayer } from "./AnnotationLayer";
 
@@ -50,28 +50,46 @@ export function PDFViewer() {
     pdfDocRef.current = null;
   }, [pdfBytes]);
 
+  const [loadingDoc, setLoadingDoc] = useState<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+
   useEffect(() => {
-    if (!pdfBytes || hasRendered.current) return;
+    if (!pdfBytes) {
+      setLoadingDoc(null);
+      return;
+    }
+    if (hasRendered.current) return;
+
+    let cancelled = false;
 
     const loadPDF = async () => {
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
+      try {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
 
-      const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
-      const pdf = await loadingTask.promise;
-      pdfDocRef.current = pdf;
-      setTotalPages(pdf.numPages);
-      hasRendered.current = true;
+        const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
+        const pdf = await loadingTask.promise;
+        if (cancelled) return;
+
+        pdfDocRef.current = pdf;
+        setTotalPages(pdf.numPages);
+        hasRendered.current = true;
+        setLoadingDoc(pdf);
+      } catch (err) {
+        console.error("Gagal meload dokumen PDF:", err);
+      }
     };
 
     loadPDF();
+    return () => {
+      cancelled = true;
+    };
   }, [pdfBytes, setTotalPages]);
 
-  // Render all pages when totalPages or pdfScale changes
+  // Render all pages when loadingDoc, totalPages, or pdfScale changes
   useEffect(() => {
-    if (!pdfDocRef.current || totalPages === 0) return;
+    const pdf = loadingDoc || pdfDocRef.current;
+    if (!pdf || totalPages === 0) return;
 
-    const pdf = pdfDocRef.current;
     const renderAll = async () => {
       for (let i = 1; i <= totalPages; i++) {
         await renderPage(i, pdf);
@@ -79,7 +97,7 @@ export function PDFViewer() {
     };
     const timer = setTimeout(renderAll, 100);
     return () => clearTimeout(timer);
-  }, [totalPages, pdfScale, renderPage]);
+  }, [loadingDoc, totalPages, pdfScale, renderPage]);
 
   if (!pdfBytes) return null;
 

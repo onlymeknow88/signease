@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SignatureAnnotation } from "@/lib/types";
+import { generateTextImage } from "@/lib/utils";
 import { useESignStore } from "@/lib/store";
 
 // Annotation overlay on a single PDF page
@@ -64,10 +65,10 @@ export function AnnotationLayer({
         const type = storeState.selectedSignatureType || "signature";
         const details = storeState.selectedTextDetails;
 
-        // For text type, use smaller default size (40% of original)
+        // For text type, use a cleaner starting scale (not 40% / too small)
         if (type === "text") {
-          sigW = 72;
-          sigH = 16;
+          sigW = 120; // Default width set to 120 (larger size, not squeezed)
+          sigH = 24;  // Height set to match 24px default font size nicely
         }
 
         // Text annotations: place top-left at cursor (I-beam behaviour).
@@ -84,7 +85,7 @@ export function AnnotationLayer({
           imageDataUrl: selectedSignatureUrl,
           type,
           ...(type === "text" ? {
-            text: details?.text ?? "",
+            text: details?.text ?? "Ketik teks di sini...", // Fallback to instruction text
             textColor: details?.color ?? "#004782",
             textSize: details?.size ?? 24,
             fontFamily: details?.fontFamily ?? "Poppins",
@@ -94,8 +95,8 @@ export function AnnotationLayer({
           } : {})
         });
 
-        // If placing empty text, auto-trigger editing mode after annotation is added
-        if (type === "text" && (!details?.text || details.text === "")) {
+        // If placing text, auto-trigger editing mode after annotation is added
+        if (type === "text") {
           // Small delay to let annotation render first
           setTimeout(() => {
             const latestAnnotations = useESignStore.getState().annotations;
@@ -177,7 +178,11 @@ function DraggableAnnotation({
     annotation.type === "text" && (!annotation.text || annotation.text === "")
   );
   const [editValue, setEditValue] = useState(annotation.text || "");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Derived state — declared early so handlers can reference them
+  const isSelected = selectedAnnotationId === annotation.id;
+  const isText = annotation.type === "text";
 
   // Auto-focus input when entering edit mode
   useEffect(() => {
@@ -314,9 +319,6 @@ function DraggableAnnotation({
 
   if (isPlacingMode) return null;
 
-  const isSelected = selectedAnnotationId === annotation.id;
-  const isText = annotation.type === "text";
-
   // Compute font size in px from ratio
   const fontSizePx = annotation.textSize
     ? annotation.textSize
@@ -347,7 +349,7 @@ function DraggableAnnotation({
         top: `${annotation.yRatio * 100}%`,
         width: `${annotation.widthRatio * 100}%`,
         height: `${annotation.heightRatio * 100}%`,
-        outline: isSelected ? "1.5px dashed #3b82f6" : "none",
+        outline: isSelected && !isDragging && !isResizing ? "1.5px dashed #3b82f6" : "none",
         outlineOffset: "0px",
         background: "transparent",
         overflow: "visible",
@@ -356,6 +358,12 @@ function DraggableAnnotation({
       onDoubleClick={handleDoubleClick}
       onClick={(e) => {
         e.stopPropagation();
+        if (isText && isSelected && !isDragging) {
+          // Second click on already-selected text annotation → enter edit mode
+          setIsEditing(true);
+          setEditValue(annotation.text || "");
+          return;
+        }
         setSelectedAnnotationId(annotation.id);
       }}
     >
@@ -379,19 +387,83 @@ function DraggableAnnotation({
 
       {/* Content */}
       {isEditing ? (
-        <input
-          ref={inputRef}
-          type="text"
+        <textarea
+          ref={inputRef as any}
           value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setEditValue(val);
+
+            // Dynamically recalculate dimensions of the container so typing scaling is auto-dynamic
+            const size = annotation.textSize || 24;
+            const color = annotation.textColor || "#004782";
+            const fontFamily = annotation.fontFamily || "Poppins";
+            const isBold = annotation.isBold !== false;
+            const isItalic = annotation.isItalic || false;
+            const isUnderline = annotation.isUnderline || false;
+
+            // Generate temporary canvas to measure exact text width in pixels
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const boldStyle = isBold ? "bold" : "";
+              const italicStyle = isItalic ? "italic" : "";
+              ctx.font = `${italicStyle} ${boldStyle} ${size}px ${fontFamily}`.trim();
+              
+              // Split typed value by newlines to measure multi-line sizes
+              const lines = (val || " ").split("\n");
+              let maxLineWidth = 0;
+              lines.forEach(l => {
+                const metrics = ctx.measureText(l || " ");
+                if (metrics.width > maxLineWidth) maxLineWidth = metrics.width;
+              });
+              
+              const calculatedWidthPx = Math.max(120, maxLineWidth + size * 0.4);
+              const containerWidthPx = containerWidth || 600;
+              const newWidthRatio = Math.min(1 - annotation.xRatio, calculatedWidthPx / containerWidthPx);
+              
+              // Scale height dynamically based on the number of lines
+              const calculatedHeightPx = (size * 1.25) * lines.length + size * 0.3;
+              const containerHeightPx = containerHeight || 800;
+              const newHeightRatio = calculatedHeightPx / containerHeightPx;
+
+              // Generate new image data URL dynamically for baking
+              const { dataUrl } = generateTextImage(
+                val || " ",
+                size,
+                color,
+                fontFamily,
+                isBold,
+                isItalic,
+                isUnderline,
+                annotation.bgColor || "transparent",
+                annotation.opacity !== undefined ? annotation.opacity : 1,
+                annotation.textAlign || "left"
+              );
+
+              onUpdate({
+                text: val,
+                widthRatio: newWidthRatio,
+                heightRatio: newHeightRatio,
+                imageDataUrl: dataUrl,
+              });
+            } else {
+              onUpdate({ text: val });
+            }
+          }}
           onBlur={handleFinishEdit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleFinishEdit();
-            else if (e.key === "Escape") { setIsEditing(false); onRemove(); }
+            // Enter key now inserts a newline; Ctrl+Enter or Command+Enter finishes edit
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              handleFinishEdit();
+            } else if (e.key === "Escape") { 
+              setIsEditing(false); 
+              onRemove(); 
+            }
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          placeholder="Ketik teks di sini..."
-          className="w-full h-full bg-transparent outline-none border-none px-0.5"
+          placeholder="Ketik teks paragraf di sini... (Ctrl+Enter untuk selesai)"
+          className="w-full h-full bg-transparent outline-none border-none px-0.5 resize-none overflow-hidden"
           style={{
             color: annotation.textColor || "#004782",
             fontFamily: annotation.fontFamily || "Poppins",
@@ -399,13 +471,16 @@ function DraggableAnnotation({
             fontStyle: annotation.isItalic ? "italic" : "normal",
             textDecoration: annotation.isUnderline ? "underline" : "none",
             fontSize: `${fontSizePx}px`,
-            lineHeight: 1,
+            lineHeight: 1.25,
+            textAlign: annotation.textAlign || "left",
+            backgroundColor: annotation.bgColor || "transparent",
+            opacity: annotation.opacity !== undefined ? annotation.opacity : 1,
           }}
         />
       ) : isText ? (
         /* Text rendered as HTML — no canvas/image conversion */
         <div
-          className={`w-full h-full flex items-center overflow-hidden ${isDragging ? "ann-grabbing" : "ann-grab"}`}
+          className={`w-full h-full flex flex-col justify-start overflow-hidden ${isDragging ? "ann-grabbing" : "ann-grab"}`}
           style={{
             color: annotation.textColor || "#004782",
             fontFamily: annotation.fontFamily || "Poppins",
@@ -413,10 +488,14 @@ function DraggableAnnotation({
             fontStyle: annotation.isItalic ? "italic" : "normal",
             textDecoration: annotation.isUnderline ? "underline" : "none",
             fontSize: `${fontSizePx}px`,
-            lineHeight: 1,
-            whiteSpace: "nowrap",
+            lineHeight: 1.25,
+            whiteSpace: "pre-wrap", // Support line-break formatting on viewer
+            wordBreak: "break-word",
             userSelect: "none",
             pointerEvents: "auto",
+            textAlign: annotation.textAlign || "left",
+            backgroundColor: annotation.bgColor || "transparent",
+            opacity: annotation.opacity !== undefined ? annotation.opacity : 1,
           }}
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -428,7 +507,11 @@ function DraggableAnnotation({
             setEditValue(annotation.text || "");
           }}
         >
-          {annotation.text || (
+          {annotation.text ? (
+            annotation.text.split("\n").map((line, idx) => (
+              <div key={idx} className="min-h-[1.25em]">{line}</div>
+            ))
+          ) : (
             <span className="text-primary/40 text-xs">Klik untuk mengetik...</span>
           )}
         </div>

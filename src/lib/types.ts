@@ -30,6 +30,12 @@ export interface SignatureAnnotation {
   isItalic?: boolean;
   /** Underline style for text annotations */
   isUnderline?: boolean;
+  /** Optional background color (for text box background fills) */
+  bgColor?: string;
+  /** Text opacity / scale transparency: 0..1 */
+  opacity?: number;
+  /** Paragraph alignment: 'left' | 'center' | 'right' */
+  textAlign?: "left" | "center" | "right";
 }
 
 export interface PDFPageInfo {

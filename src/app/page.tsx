@@ -45,16 +45,15 @@ export default function LandingPage() {
                 href="/app"
                 className="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 group text-center"
               >
-                Coba Gratis
+                Coba Gratis (Sign)
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <button
-                onClick={() => alert("Fitur demo video sedang dipersiapkan.")}
-                className="border-2 border-outline-variant text-on-surface px-8 py-4 rounded-xl font-bold text-sm hover:bg-surface-container-low transition-all flex items-center justify-center gap-2 text-center cursor-pointer"
+              <Link
+                href="/merge"
+                className="border-2 border-outline-variant text-on-surface px-8 py-4 rounded-xl font-bold text-sm hover:bg-surface-container-low transition-all flex items-center justify-center gap-2 text-center"
               >
-                <Play className="w-4 h-4 text-primary fill-primary" />
-                Demo Video
-              </button>
+                Gabungkan PDF
+              </Link>
             </div>
 
             {/* Trust Indicators */}

@@ -107,6 +107,9 @@ interface ESignStore {
     isBold: boolean;
     isItalic: boolean;
     isUnderline: boolean;
+    bgColor?: string;
+    opacity?: number;
+    textAlign?: "left" | "center" | "right";
   } | null;
 
   // Pending certificate — set when user applies signature, used at download

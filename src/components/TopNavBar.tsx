@@ -50,6 +50,7 @@ export function TopNavBar() {
 
   const navLinks = [
     { label: "Beranda",    href: "/",        icon: LayoutDashboard },
+    { label: "Merge PDF",  href: "/merge",   icon: FileText        },
     { label: "Workspace",  href: "/app",     icon: FileText        },
     { label: "Verifikasi", href: "/verify",  icon: ShieldCheck     },
     { label: "Harga",      href: "/pricing", icon: CreditCard      },
