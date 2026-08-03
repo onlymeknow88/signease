@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, PenLine, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, PenLine, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { CertificateManager } from "./CertificateManager";
@@ -11,7 +11,6 @@ export function RightPanel() {
   const {
     annotations,
     selectedAnnotationId,
-    removeAnnotation,
     updateAnnotation,
     user,
     pdfFile,
@@ -377,19 +376,6 @@ export function RightPanel() {
             )}
           </div>
       </div>
-
-      {/* Hapus Bidang — full width, visible only when annotation selected */}
-      {selectedAnnotation && (
-        <div className="px-4 py-3 border-t border-outline-variant shrink-0">
-          <button
-            onClick={() => removeAnnotation(selectedAnnotation.id)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-destructive/60 text-destructive text-xs font-semibold hover:bg-destructive/5 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Hapus
-          </button>
-        </div>
-      )}
 
       {/* Audit Trail Panel */}
       <div className="mt-auto p-4 bg-surface-container-lowest border-t border-outline-variant space-y-4 shrink-0">
