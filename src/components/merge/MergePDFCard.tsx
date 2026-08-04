@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2, RotateCw } from "lucide-react";
 import { MergePDFItem } from "@/lib/merge-store";
 import { MergePageThumbnail } from "./MergePageThumbnail";
 
@@ -10,9 +10,10 @@ interface MergePDFCardProps {
   index: number;
   onRemove: (id: string) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
+  onRotate: (id: string) => void;
 }
 
-export function MergePDFCard({ item, index, onRemove, onMove }: MergePDFCardProps) {
+export function MergePDFCard({ item, index, onRemove, onMove, onRotate }: MergePDFCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -64,7 +65,7 @@ export function MergePDFCard({ item, index, onRemove, onMove }: MergePDFCardProp
 
       {/* PDF Thumbnail */}
       <div className="shrink-0">
-        <MergePageThumbnail pdfBytes={item.bytes} />
+        <MergePageThumbnail pdfBytes={item.bytes} rotation={item.rotation} />
       </div>
 
       {/* Details */}
@@ -74,17 +75,36 @@ export function MergePDFCard({ item, index, onRemove, onMove }: MergePDFCardProp
         </p>
         <p className="text-xs text-on-surface-variant font-medium mt-1">
           {item.pageCount} Halaman • {((item.file.size || 0) / 1024 / 1024).toFixed(2)} MB
+          {item.rotation !== 0 && ` • Rotasi ${item.rotation}°`}
         </p>
       </div>
 
-      {/* Remove button */}
-      <button
-        onClick={() => onRemove(item.id)}
-        className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-xl transition-all shrink-0 cursor-pointer"
-        title="Hapus file"
-      >
-        <Trash2 className="w-5 h-5" />
-      </button>
+      {/* Action buttons */}
+      <div className="flex items-center gap-1 shrink-0">
+        {/* Rotate button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRotate(item.id);
+          }}
+          className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all cursor-pointer"
+          title="Putar 90° searah jarum jam"
+        >
+          <RotateCw className="w-5 h-5" />
+        </button>
+
+        {/* Remove button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(item.id);
+          }}
+          className="p-2 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-xl transition-all cursor-pointer"
+          title="Hapus file"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 }

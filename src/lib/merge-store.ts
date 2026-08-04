@@ -11,6 +11,7 @@ export interface MergePDFItem {
   bytes: Uint8Array;
   pageCount: number;
   name: string;
+  rotation: number; // 0, 90, 180, or 270
 }
 
 interface MergeStore {
@@ -24,6 +25,7 @@ interface MergeStore {
   addFiles: (files: File[]) => Promise<void>;
   removeItem: (id: string) => void;
   reorderItems: (fromIndex: number, toIndex: number) => void;
+  rotateItem: (id: string) => void;
   clearAll: () => void;
   mergePDFs: () => Promise<void>;
   openInEditor: (routerPush: (path: string) => void) => void;
@@ -71,6 +73,7 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
           bytes,
           pageCount,
           name: file.name,
+          rotation: 0,
         });
       } catch (err) {
         console.error("Gagal membaca file PDF:", file.name, err);
@@ -106,6 +109,18 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
     });
   },
 
+  rotateItem: (id: string) => {
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === id
+          ? { ...item, rotation: (item.rotation + 90) % 360 }
+          : item
+      ),
+      mergedBytes: null,
+      mergedPageCount: 0,
+    }));
+  },
+
   clearAll: () => {
     set({
       items: [],
@@ -134,7 +149,12 @@ export const useMergeStore = create<MergeStore>((set, get) => ({
           srcDoc,
           Array.from({ length: item.pageCount }, (_, i) => i)
         );
-        copiedPages.forEach((page) => mergedDoc.addPage(page));
+        copiedPages.forEach((page) => {
+          if (item.rotation !== 0) {
+            page.setRotation(degrees(item.rotation));
+          }
+          mergedDoc.addPage(page);
+        });
       }
 
       // Add watermark if user plan is free

@@ -217,6 +217,16 @@ interface ESignStore {
 
   // Append pages from another PDF to the active PDF
   appendPdfPages: (newPdfBytes: Uint8Array) => Promise<void>;
+
+  // Page operations
+  deletePage: (pageIndex: number) => Promise<void>;
+  rotatePage: (pageIndex: number, degrees: 90 | 180 | 270) => Promise<void>;
+  duplicatePage: (pageIndex: number) => Promise<void>;
+  insertBlankPage: (afterPageIndex: number) => Promise<void>;
+
+  // Text extraction / edit
+  isExtractingText: boolean;
+  extractTextFromPage: (pageIndex: number, onProgress?: (p: number) => void) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +296,9 @@ export const useESignStore = create<ESignStore>((set, get) => ({
   // Logo watermark
   logoWatermarkEnabled: false,
   logoDataUrl: null,
+
+  // Text extraction
+  isExtractingText: false,
 
   setPdfFile: (file) => set({ pdfFile: file }),
   setPdfBytes: (bytes) => set({ pdfBytes: bytes }),
@@ -778,11 +791,166 @@ export const useESignStore = create<ESignStore>((set, get) => ({
       const copiedPages = await basePdf.copyPages(addPdf, Array.from({ length: pageCount }, (_, i) => i));
       copiedPages.forEach((page) => basePdf.addPage(page));
       const merged = await basePdf.save();
-      // Only update pdfBytes — PDFViewer will reload and set totalPages itself
       set({ pdfBytes: new Uint8Array(merged) });
     } catch (err) {
       console.error("appendPdfPages failed:", err);
       throw err;
+    }
+  },
+
+  deletePage: async (pageIndex: number) => {
+    const { pdfBytes, annotations, currentPage, totalPages } = get();
+    if (!pdfBytes) return;
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const pdf = await PDFDocument.load(pdfBytes);
+      pdf.removePage(pageIndex);
+      const saved = await pdf.save();
+      // Remap annotations: remove deleted page, shift pages after it
+      const updatedAnnotations = annotations
+        .filter(a => a.pageIndex !== pageIndex)
+        .map(a => ({
+          ...a,
+          pageIndex: a.pageIndex > pageIndex ? a.pageIndex - 1 : a.pageIndex,
+        }));
+      const newTotal = totalPages - 1;
+      const newPage = currentPage > newTotal ? Math.max(1, newTotal) : currentPage;
+      set({
+        pdfBytes: new Uint8Array(saved),
+        annotations: updatedAnnotations,
+        currentPage: newPage,
+      });
+    } catch (err) {
+      console.error("deletePage failed:", err);
+      throw err;
+    }
+  },
+
+  rotatePage: async (pageIndex: number, degrees: 90 | 180 | 270) => {
+    const { pdfBytes } = get();
+    if (!pdfBytes) return;
+    try {
+      const { PDFDocument, degrees: pdfDegrees } = await import("pdf-lib");
+      const pdf = await PDFDocument.load(pdfBytes);
+      const page = pdf.getPage(pageIndex);
+      const currentRotation = page.getRotation().angle;
+      page.setRotation(pdfDegrees((currentRotation + degrees) % 360));
+      const saved = await pdf.save();
+      set({ pdfBytes: new Uint8Array(saved) });
+    } catch (err) {
+      console.error("rotatePage failed:", err);
+      throw err;
+    }
+  },
+
+  duplicatePage: async (pageIndex: number) => {
+    const { pdfBytes, annotations } = get();
+    if (!pdfBytes) return;
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const pdf = await PDFDocument.load(pdfBytes);
+      const [copiedPage] = await pdf.copyPages(pdf, [pageIndex]);
+      // Insert duplicate right after the original
+      pdf.insertPage(pageIndex + 1, copiedPage);
+      const saved = await pdf.save();
+      // Shift annotations after the inserted page
+      const updatedAnnotations = annotations.map(a => ({
+        ...a,
+        pageIndex: a.pageIndex > pageIndex ? a.pageIndex + 1 : a.pageIndex,
+      }));
+      set({ pdfBytes: new Uint8Array(saved), annotations: updatedAnnotations });
+    } catch (err) {
+      console.error("duplicatePage failed:", err);
+      throw err;
+    }
+  },
+
+  insertBlankPage: async (afterPageIndex: number) => {
+    const { pdfBytes, annotations } = get();
+    if (!pdfBytes) return;
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const pdf = await PDFDocument.load(pdfBytes);
+      const existingPage = pdf.getPage(0);
+      const { width, height } = existingPage.getSize();
+      const blankPage = pdf.insertPage(afterPageIndex + 1, [width, height]);
+      void blankPage;
+      const saved = await pdf.save();
+      // Shift annotations after the inserted page
+      const updatedAnnotations = annotations.map(a => ({
+        ...a,
+        pageIndex: a.pageIndex > afterPageIndex ? a.pageIndex + 1 : a.pageIndex,
+      }));
+      set({ pdfBytes: new Uint8Array(saved), annotations: updatedAnnotations });
+    } catch (err) {
+      console.error("insertBlankPage failed:", err);
+      throw err;
+    }
+  },
+
+  extractTextFromPage: async (pageIndex: number, onProgress?: (p: number) => void) => {
+    const { pdfBytes, annotations } = get();
+    if (!pdfBytes) return;
+    set({ isExtractingText: true });
+    try {
+      const { hasTextLayer, extractTextFromPdfLayer, extractTextViaOcr } = await import("./extract-text");
+
+      // Validate pageIndex against actual PDF page count
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      const pdfDoc = await pdfjsLib.getDocument({
+        data: pdfBytes.slice(),
+        useSystemFonts: false,
+        standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
+      }).promise;
+      const numPages = pdfDoc.numPages;
+      if (pageIndex < 0 || pageIndex >= numPages) {
+        console.warn(`extractTextFromPage: pageIndex ${pageIndex} out of range (numPages=${numPages})`);
+        return;
+      }
+
+      const hasLayer = await hasTextLayer(pdfBytes, pageIndex);
+      console.log(`extractTextFromPage: pageIndex=${pageIndex}, hasTextLayer=${hasLayer}`);
+
+      let items;
+      if (hasLayer) {
+        items = await extractTextFromPdfLayer(pdfBytes, pageIndex, 0, 0);
+      } else {
+        items = await extractTextViaOcr(pdfBytes, pageIndex, onProgress);
+      }
+
+      console.log(`extractTextFromPage: items extracted=${items.length}`, items.slice(0, 3));
+
+      if (!items.length) return;
+
+      // Convert extracted items to annotations
+      const { nanoid } = await import("nanoid");
+      const newAnnotations = items.map(item => ({
+        id: nanoid(),
+        pageIndex,
+        xRatio: item.xRatio,
+        yRatio: item.yRatio,
+        widthRatio: item.widthRatio,
+        heightRatio: item.heightRatio,
+        imageDataUrl: "",
+        type: "extracted-text" as const,
+        text: item.text,
+        textColor: "#000000",
+        textSize: item.fontSize,
+        fontFamily: "Poppins",
+        isBold: false,
+        isItalic: false,
+        isUnderline: false,
+        bgColor: "#ffffff",
+        opacity: 1,
+      }));
+
+      set({ annotations: [...annotations, ...newAnnotations] });
+    } catch (err) {
+      console.error("extractTextFromPage failed:", err);
+      throw err;
+    } finally {
+      set({ isExtractingText: false });
     }
   },
 }));

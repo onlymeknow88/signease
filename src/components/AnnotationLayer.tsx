@@ -168,15 +168,16 @@ function DraggableAnnotation({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const isSelected = selectedAnnotationId === annotation.id;
-  const isText = annotation.type === "text";
+  const isText = annotation.type === "text" || annotation.type === "extracted-text";
+  const isExtractedText = annotation.type === "extracted-text";
 
   // Auto-select new empty text annotation and enter edit mode
   useEffect(() => {
-    if (isText && isSelected && !annotation.text) {
+    if (annotation.type === "text" && isSelected && !annotation.text) {
       setIsEditing(true);
       setEditValue("");
     }
-  }, [isSelected, isText, annotation.text]);
+  }, [isSelected, annotation.type, annotation.text]);
 
   // Focus textarea when editing
   useEffect(() => {
@@ -331,7 +332,9 @@ function DraggableAnnotation({
         top: `${annotation.yRatio * 100}%`,
         width: `${annotation.widthRatio * 100}%`,
         height: `${annotation.heightRatio * 100}%`,
-        outline: isSelected && !isDragging && !isResizing ? "1.5px dashed #3b82f6" : "none",
+        outline: isSelected && !isDragging && !isResizing
+          ? isExtractedText ? "1.5px dashed #f59e0b" : "1.5px dashed #3b82f6"
+          : "none",
         outlineOffset: "0px",
         background: "transparent",
         overflow: "visible",
@@ -362,6 +365,8 @@ function DraggableAnnotation({
           <span>TANDA TANGAN</span>
         </div>
       )}
+
+
 
       {/* Content */}
       {isEditing ? (
@@ -443,12 +448,12 @@ function DraggableAnnotation({
           onPointerDown={handleDragPointerDown}
           onDoubleClick={(e) => {
             e.stopPropagation();
-            enterEditMode();
+            if (!isExtractedText) enterEditMode();
           }}
           onClick={(e) => {
             e.stopPropagation();
-            if (isSelected && !isDraggingRef.current) {
-              // Second click on already-selected text = enter edit
+            if (isSelected && !isDraggingRef.current && !isExtractedText) {
+              // Second click on already-selected text = enter edit (only for regular text)
               enterEditMode();
             } else {
               setSelectedAnnotationId(annotation.id);

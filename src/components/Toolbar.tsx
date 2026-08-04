@@ -66,6 +66,14 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
     setRightPanelTab,
     pdfFile,
     appendPdfPages,
+    currentPage,
+    totalPages,
+    deletePage,
+    rotatePage,
+    duplicatePage,
+    insertBlankPage,
+    extractTextFromPage,
+    isExtractingText,
   } = useESignStore();
 
   const selectedAnnotation = annotations.find(
@@ -73,7 +81,8 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
   );
 
   const [activeMenu, setActiveMenu] = useState<"signature" | "text" | "cert" | null>("signature");
-  const [openPopup, setOpenPopup] = useState<"signature" | "text" | "cert" | "bgColor" | null>(null);
+  const [openPopup, setOpenPopup] = useState<"signature" | "text" | "cert" | "bgColor" | "editPage" | null>(null);
+  const [isPageLoading, setIsPageLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const appendFileInputRef = useRef<HTMLInputElement>(null);
@@ -179,7 +188,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
   // Helper text styling updates on selected element
   const updateSelectedStyle = (updates: Partial<typeof selectedTextDetails> | null) => {
     if (!updates) return;
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const text = selectedAnnotation.text || "";
     const size = updates.size !== undefined ? updates.size : (selectedAnnotation.textSize || 24);
     const color = updates.color !== undefined ? updates.color : (selectedAnnotation.textColor || "#004782");
@@ -276,9 +285,122 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
             </button>
           )}
 
-          <div className="w-px h-6 bg-outline-variant/60 mx-1" />
+          {/* Edit Halaman dropdown — only when PDF is open */}
+          {pdfFile && (
+            <div className="relative">
+              <button
+                onClick={() => setOpenPopup(openPopup === "editPage" ? null : "editPage")}
+                className={iconBtn(openPopup === "editPage")}
+                title="Edit Halaman"
+              >
+                <span className="material-symbols-outlined text-[18px]">edit_document</span>
+              </button>
 
-          {/* Pilih (Select) */}
+              {openPopup === "editPage" && (
+                <div className="absolute top-full mt-1 left-0 bg-white border border-outline-variant rounded-xl shadow-xl z-50 py-1 w-48 animate-in slide-in-from-top-1 duration-150">
+                  <div className="px-3 py-1.5 text-[9px] font-bold text-outline uppercase tracking-wider border-b border-outline-variant/50 mb-1">
+                    Halaman {currentPage}
+                  </div>
+
+                  {/* Rotate */}
+                  <button
+                    disabled={isPageLoading}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40"
+                    onClick={async () => {
+                      setIsPageLoading(true);
+                      try { await rotatePage(currentPage - 1, 90); } finally { setIsPageLoading(false); setOpenPopup(null); }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-outline">rotate_right</span>
+                    Putar 90° Kanan
+                  </button>
+
+                  <button
+                    disabled={isPageLoading}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40"
+                    onClick={async () => {
+                      setIsPageLoading(true);
+                      try { await rotatePage(currentPage - 1, 180); } finally { setIsPageLoading(false); setOpenPopup(null); }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-outline">rotate_left</span>
+                    Putar 180°
+                  </button>
+
+                  <div className="h-px bg-outline-variant/50 my-1" />
+
+                  {/* Duplicate */}
+                  <button
+                    disabled={isPageLoading}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40"
+                    onClick={async () => {
+                      setIsPageLoading(true);
+                      try { await duplicatePage(currentPage - 1); } finally { setIsPageLoading(false); setOpenPopup(null); }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-outline">content_copy</span>
+                    Duplikat Halaman
+                  </button>
+
+                  {/* Insert blank */}
+                  <button
+                    disabled={isPageLoading}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40"
+                    onClick={async () => {
+                      setIsPageLoading(true);
+                      try { await insertBlankPage(currentPage - 1); } finally { setIsPageLoading(false); setOpenPopup(null); }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-outline">add</span>
+                    Sisipkan Halaman Kosong
+                  </button>
+
+                  <div className="h-px bg-outline-variant/50 my-1" />
+
+                  {/* Delete */}
+                  <button
+                    disabled={isPageLoading || totalPages <= 1}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={async () => {
+                      setIsPageLoading(true);
+                      try { await deletePage(currentPage - 1); } finally { setIsPageLoading(false); setOpenPopup(null); }
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">delete</span>
+                    {totalPages <= 1 ? "Tidak bisa hapus (1 halaman)" : "Hapus Halaman Ini"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit Teks PDF — extract text from current page */}
+          {pdfFile && (
+            <button
+              onClick={async () => {
+                setOpenPopup(null);
+                const pageIdx = Math.max(0, currentPage - 1);
+                console.log(`[EditTeks] clicked, currentPage=${currentPage}, pageIdx=${pageIdx}`);
+                try {
+                  await extractTextFromPage(pageIdx);
+                } catch (err) {
+                  console.error("[EditTeks] error:", err);
+                  alert("Gagal mengekstrak teks dari halaman ini.");
+                }
+              }}
+              disabled={isExtractingText}
+              className={iconBtn(isExtractingText)}
+              title="Edit Teks PDF — Ekstrak teks dari halaman aktif"
+            >
+              {isExtractingText ? (
+                <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">manage_search</span>
+              )}
+            </button>
+          )}
+
+          <div className="w-px h-6 bg-outline-variant/60 mx-1" />
           <button
             onClick={() => {
               setPlacingMode(false);
@@ -411,7 +533,7 @@ export function Toolbar({ onOpenSignaturePad }: ToolbarProps) {
       </div>
 
       {/* Row 2: Rich Text Formatting / Annotation Context Tools (Centered underneath Row 1) */}
-      {selectedAnnotation && selectedAnnotation.type === "text" ? (
+      {selectedAnnotation && (selectedAnnotation.type === "text" || selectedAnnotation.type === "extracted-text") ? (
         <div className="w-full flex justify-center px-2 animate-in slide-in-from-top-1 duration-150">
           <div className="flex items-center gap-2 bg-slate-50 border border-outline-variant/75 px-3 py-1 rounded-xl shadow-sm min-h-[42px] max-w-max">
             {/* Font Family Dropdown */}

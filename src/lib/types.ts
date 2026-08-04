@@ -15,7 +15,7 @@ export interface SignatureAnnotation {
   /** Base64 PNG of the signature image */
   imageDataUrl: string;
   /** Type of annotation */
-  type?: "signature" | "text";
+  type?: "signature" | "text" | "extracted-text";
   /** Optional text content for text annotations */
   text?: string;
   /** Optional text color */

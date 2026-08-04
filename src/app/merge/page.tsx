@@ -21,6 +21,7 @@ export default function MergePDFPage() {
     addFiles,
     removeItem,
     reorderItems,
+    rotateItem,
     clearAll,
     mergePDFs,
     openInEditor,
@@ -119,74 +120,94 @@ export default function MergePDFPage() {
         )}
 
         {step === 2 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-outline-variant/60 pb-4">
-              <h2 className="font-bold text-lg text-on-surface">
-                Daftar File PDF ({items.length})
-              </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={clearAll}
-                  className="px-4 py-2 border-2 border-outline-variant hover:bg-surface-container-low text-on-surface rounded-xl text-xs font-bold transition-all cursor-pointer"
-                >
-                  Hapus Semua
-                </button>
-                <label className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
-                  <Plus className="w-3.5 h-3.5" />
-                  Tambah File
-                  <input
-                    type="file"
-                    multiple
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={(e) => e.target.files && handleFilesSelected(Array.from(e.target.files))}
-                  />
-                </label>
+          <div className="relative">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-outline-variant/60 pb-4">
+                <h2 className="font-bold text-lg text-on-surface">
+                  Daftar File PDF ({items.length})
+                </h2>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-all cursor-pointer active:scale-95">
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah PDF
+                    <input
+                      type="file"
+                      multiple
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={(e) => e.target.files && handleFilesSelected(Array.from(e.target.files))}
+                    />
+                  </label>
+                  <button
+                    onClick={clearAll}
+                    className="px-3 py-1.5 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Hapus Semua
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* List with drag instructions */}
-            <p className="text-xs text-on-surface-variant font-medium">
-              * Tarik dan letakkan kartu file untuk mengatur ulang urutan penggabungan.
-            </p>
+              {/* List with drag instructions */}
+              <p className="text-xs text-on-surface-variant font-medium">
+                * Tarik dan letakkan kartu file untuk mengatur ulang urutan penggabungan.
+              </p>
 
-            <div className="space-y-3">
-              {items.map((item, index) => (
-                <MergePDFCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  onRemove={removeItem}
-                  onMove={reorderItems}
-                />
-              ))}
-            </div>
+              {/* Grid Layout - Cards on the left */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Side - PDF Cards */}
+                <div className="lg:col-span-2 space-y-3">
+                  {items.map((item, index) => (
+                    <MergePDFCard
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      onRemove={removeItem}
+                      onMove={reorderItems}
+                      onRotate={rotateItem}
+                    />
+                  ))}
+                </div>
 
-            {/* CTA merge button */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-container-low p-4 rounded-2xl border border-outline-variant mt-6">
-              <div>
-                <p className="text-sm font-bold text-on-surface">Total Dokumen Baru</p>
-                <p className="text-xs text-on-surface-variant">
-                  {items.reduce((acc, curr) => acc + curr.pageCount, 0)} Halaman dari {items.length} PDF
-                </p>
+                {/* Right Side - Merge Summary (Sticky) */}
+                <div className="lg:col-span-1">
+                  <div className="sticky top-24 space-y-4">
+                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant shadow-sm">
+                      <h3 className="text-sm font-bold text-on-surface mb-4">Ringkasan</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-on-surface-variant">Total File</span>
+                          <span className="text-sm font-bold text-on-surface">{items.length} PDF</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-on-surface-variant">Total Halaman</span>
+                          <span className="text-sm font-bold text-on-surface">
+                            {items.reduce((acc, curr) => acc + curr.pageCount, 0)} Halaman
+                          </span>
+                        </div>
+                        <div className="border-t border-outline-variant pt-3 mt-3">
+                          <button
+                            onClick={mergePDFs}
+                            disabled={items.length < 2 || isMerging}
+                            className="w-full px-6 py-3.5 bg-primary text-on-primary rounded-xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                          >
+                            {isMerging ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Menggabungkan...
+                              </>
+                            ) : (
+                              <>
+                                Gabungkan PDF
+                                <ArrowRight className="w-4 h-4" />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={mergePDFs}
-                disabled={items.length < 2 || isMerging}
-                className="w-full sm:w-auto px-8 py-3.5 bg-primary text-on-primary rounded-xl font-bold text-sm hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isMerging ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Menggabungkan...
-                  </>
-                ) : (
-                  <>
-                    Gabungkan PDF
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
             </div>
           </div>
         )}

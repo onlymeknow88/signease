@@ -24,7 +24,9 @@ export function PDFViewer() {
       const canvas = canvasRefs.current[pageNum - 1];
       if (!canvas) return;
 
-      const viewport = page.getViewport({ scale: pdfScaleRef.current });
+      // Include page rotation so rotated PDFs render correctly
+      const rotation = page.rotate ?? 0;
+      const viewport = page.getViewport({ scale: pdfScaleRef.current, rotation });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
@@ -66,7 +68,11 @@ export function PDFViewer() {
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
 
-        const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
+        const loadingTask = pdfjsLib.getDocument({
+          data: pdfBytes.slice(0),
+          useSystemFonts: false,
+          standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
+        });
         const pdf = await loadingTask.promise;
         if (cancelled) return;
 

@@ -29,7 +29,7 @@ export function RightPanel() {
 
   const [signerRole, setSignerRole] = useState("Wajib Tanda Tangan");
   const [sizePercent, setSizePercent] = useState(100);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isRequired, setIsRequired] = useState(false);
 
   // Synchronize size slider when selected element changes
@@ -59,7 +59,7 @@ export function RightPanel() {
   };
 
   const handleTextChange = (newText: string) => {
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const size = selectedAnnotation.textSize || 24;
     const color = selectedAnnotation.textColor || "#1a1a2e";
     const fontFamily = selectedAnnotation.fontFamily || "Poppins";
@@ -81,7 +81,7 @@ export function RightPanel() {
   };
 
   const handleColorChange = (newColor: string) => {
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const text = selectedAnnotation.text || "";
     const size = selectedAnnotation.textSize || 24;
     const fontFamily = selectedAnnotation.fontFamily || "Poppins";
@@ -99,7 +99,7 @@ export function RightPanel() {
   };
 
   const handleTextSizeChange = (newSize: number) => {
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const text = selectedAnnotation.text || "";
     const color = selectedAnnotation.textColor || "#1a1a2e";
     const fontFamily = selectedAnnotation.fontFamily || "Poppins";
@@ -122,7 +122,7 @@ export function RightPanel() {
   };
 
   const handleFontFamilyChange = (newFontFamily: string) => {
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const text = selectedAnnotation.text || "";
     const size = selectedAnnotation.textSize || 24;
     const color = selectedAnnotation.textColor || "#1a1a2e";
@@ -140,7 +140,7 @@ export function RightPanel() {
   };
 
   const handleStyleToggle = (styleType: "bold" | "italic" | "underline") => {
-    if (!selectedAnnotation || selectedAnnotation.type !== "text") return;
+    if (!selectedAnnotation || (selectedAnnotation.type !== "text" && selectedAnnotation.type !== "extracted-text")) return;
     const text = selectedAnnotation.text || "";
     const size = selectedAnnotation.textSize || 24;
     const color = selectedAnnotation.textColor || "#1a1a2e";

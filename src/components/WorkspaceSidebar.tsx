@@ -1,24 +1,25 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useESignStore } from "@/lib/store";
-import { UpgradeCard } from "@/components/UpgradeCard";
-import { signOut } from "next-auth/react";
 import {
-  Upload,
-  LayoutDashboard,
-  FileText,
-  LayoutGrid,
-  History,
-  Trash2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Settings,
+  FileText,
+  History,
+  LayoutDashboard,
+  LayoutGrid,
   LogOut,
-  ChevronDown,
+  Settings,
+  Trash2,
+  Upload,
 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+
+import Link from "next/link";
+import { UpgradeCard } from "@/components/UpgradeCard";
+import { signOut } from "next-auth/react";
+import { useESignStore } from "@/lib/store";
 
 type NavItem = {
   href: string;
@@ -57,9 +58,9 @@ export function WorkspaceSidebar() {
   const navItems: NavItem[] = [
     { href: "/",          label: "Dashboard",    icon: LayoutDashboard, comingSoon: false },
     { href: "/app",       label: "Dokumen Saya", icon: FileText,        comingSoon: false },
-    { href: "/templates", label: "Template",     icon: LayoutGrid,      comingSoon: true  },
-    { href: "/history",   label: "Riwayat",      icon: History,         comingSoon: true  },
-    { href: "/trash",     label: "Sampah",       icon: Trash2,          comingSoon: true  },
+    // { href: "/templates", label: "Template",     icon: LayoutGrid,      comingSoon: true  },
+    // { href: "/history",   label: "Riwayat",      icon: History,         comingSoon: true  },
+    // { href: "/trash",     label: "Sampah",       icon: Trash2,          comingSoon: true  },
   ];
 
   const baseClass = (isActive: boolean, collapsed: boolean) => `
@@ -88,7 +89,7 @@ export function WorkspaceSidebar() {
       </div>
 
       {/* Upload button */}
-      <div className={`px-2 py-3 border-b border-outline-variant/50 ${sidebarCollapsed ? "flex justify-center" : ""}`}>
+      {/* <div className={`px-2 py-3 border-b border-outline-variant/50 ${sidebarCollapsed ? "flex justify-center" : ""}`}>
         <button
           onClick={() => fileInputRef.current?.click()}
           className={`
@@ -102,7 +103,7 @@ export function WorkspaceSidebar() {
           {!sidebarCollapsed && <span>+ Unggah PDF Baru</span>}
         </button>
         <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleUpload} />
-      </div>
+      </div> */}
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
